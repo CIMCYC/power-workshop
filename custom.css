@@ -1,0 +1,162 @@
+/* Custom CSS for Vasishth Simulation Presentation */
+
+/* Global font size - makes everything smaller */
+.reveal {
+  font-size: 28px; /* Default is 40px, adjust as needed */
+}
+
+/* Background color - choose one of the options below */
+.reveal {
+  background-color: #F8F9FA; /* Subtle gray - professional */
+  /* Other nice options (uncomment one you like):
+  background-color: #FFF8F0; Light cream - warm and soft
+  background-color: #F0F4F8; Light blue-gray - modern and cool
+  background-color: #FAFAFA; Almost white - clean and minimal
+  background-color: #E8F4F8; Very light blue - calming
+  background-color: #F5F5F5; Light gray - professional and easy on eyes
+  */
+}
+
+/* Gradient background (alternative to solid color) */
+/* Uncomment this section if you prefer a gradient
+.reveal {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(to bottom right, #E8F4F8, #FFFFFF);
+}
+*/
+
+/* Main heading (h2) styling - these are your slide titles with ## */
+.reveal h2 {
+  color: #2E86AB;
+  font-weight: bold;
+  font-size: 1.8em; /* Relative to base font size */
+}
+
+/* Top-level heading (h1) styling */
+.reveal h1 {
+  color: #A23B72;
+  font-weight: bold;
+  font-size: 2.2em;
+}
+
+/* Third-level headings (h3) */
+.reveal h3 {
+  color: #F18F01;
+  font-size: 1.3em;
+}
+
+/* Paragraph and list text */
+.reveal p, .reveal li {
+  font-size: 0.9em;
+}
+
+/* Code block styling */
+.reveal pre {
+  font-size: 0.6em; /* Smaller code blocks */
+  line-height: 1.2;
+  background-color: #E8E8E8; /* Concrete gray background */
+  border: 1px solid #CCCCCC; /* Subtle border */
+  border-radius: 4px; /* Rounded corners */
+  padding: 15px; /* More padding for breathing room */
+}
+
+/* Code within pre blocks */
+.reveal pre code {
+  background-color: transparent; /* Don't double-apply background */
+  color: #2C3E50; /* Dark gray text for better readability */
+}
+
+/* Inline code styling */
+.reveal code {
+  background-color: #E0E0E0; /* Light concrete for inline code */
+  color: #2C3E50; /* Dark gray text */
+  font-size: 0.85em;
+  padding: 2px 6px; /* Small padding around inline code */
+  border-radius: 3px; /* Slightly rounded */
+}
+
+/* Bold text styling */
+.reveal strong {
+  color: #2C3E50;
+}
+
+/* Custom classes you can use */
+.blue-heading h2 {
+  color: #4A90E2 !important;
+}
+
+.red-heading h2 {
+  color: #E74C3C !important;
+}
+
+.green-heading h2 {
+  color: #27AE60 !important;
+}
+
+.orange-heading h2 {
+  color: #F39C12 !important;
+}
+
+/* Incremental list styling - no grey-out baseline */
+.reveal .incremental li {
+  margin-bottom: 0.5em;
+  color: #000000; /* Full black by default */
+  transition: color 0.3s ease; /* Smooth transition */
+}
+
+/* Active (current) fragment stays black */
+.reveal .incremental li.current-fragment,
+.reveal .incremental li.visible {
+  color: #000000; /* Black for active items */
+  font-weight: normal;
+}
+
+/* Alternative: fade-in-then-semi-out effect */
+.reveal .fade-in-then-semi-out .fragment {
+  opacity: 0.3; /* Very light initially */
+}
+
+.reveal .fade-in-then-semi-out .fragment.visible {
+  opacity: 1; /* Full opacity when revealed */
+}
+
+.reveal .fade-in-then-semi-out .fragment.visible.current-fragment {
+  opacity: 1; /* Stay visible */
+}
+
+/* Table styling */
+.reveal table {
+  font-size: 0.8em;
+}
+
+/* Progressive code highlighting - no dimming of unhighlighted lines */
+/* Only apply dimming AFTER at least one line has been highlighted */
+.reveal.has-line-highlighted:not(.slide-background-present) pre code > span[id]:not(.highlight-line) {
+  opacity: 1; /* No grey-out - keep full opacity */
+}
+
+/* Brighten and highlight the active line */
+.reveal pre code > span[id].highlight-line {
+  opacity: 1 !important; /* Full brightness */
+  background-color: rgba(255, 200, 0, 0.15) !important; /* Yellow background */
+  /* Removed display: block to prevent extra line spacing */
+}
+
+/* Ensure all lines start at full opacity */
+.reveal pre code > span[id] {
+  opacity: 1;
+}
+
+/* Fix the copy button appearing/disappearing causing layout shift */
+/* Option 1: Hide copy button completely for highlighted code */
+.reveal .sourceCode[data-code-line-numbers] + .code-copy-button {
+  display: none !important;
+}
+
+/* Option 2: Always show copy button (comment out Option 1 and use this instead) */
+/*
+.reveal .code-copy-button {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+*/

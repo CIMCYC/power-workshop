@@ -1,0 +1,164 @@
+---
+title: "Simulation-Based Power Analysis"
+subtitle: "Part 3: Repeated Measures"
+format:
+  revealjs:
+    theme: serif
+    css: custom.css
+    slide-number: true
+    chalkboard: true
+    code-fold: false
+    code-overflow: wrap
+    scrollable: true
+---
+## Part 3: Repeated Measures
+
+```{r}
+#| echo: false
+#| eval: true
+
+# load packages
+library(tictoc)
+library(MASS)
+library(lme4)
+library(lmerTest)
+library(ggplot2)
+
+options(scipen = 999) # prevents scientific notation
+set.seed(42) # set seed for reproducibility
+```
+
+**Realistically, we collect multiple data points from each subject in each condition.**
+
+With the following code we generate 20 data points from each subject for each condition: 
+
+```{r}
+#| echo: true
+#| eval: true
+#| code-line-numbers: "|2|4-5|7-10|12-16"
+
+n <- 20  # subjects
+k <- 20  # 20 observations per condition, 40 trials in total
+
+# the cond vector has to be made n * k times long for each condition
+cond.cod <- rep(c(-0.5, 0.5), each = n * k)
+
+# subject vector: each of the n subject ids has to be repeated k times, 
+# and there are two conditions, so the whole vector has to be repeated twice;
+# this can be implemented with two rep() functions:
+subj <- rep(rep(1:n, each = k), times = 2)
+
+# create data frame
+sim_dat <- data.frame(
+  subj = subj,
+  cond.cod = cond.cod
+)
+```
+
+## Part 3: Repeated Measures
+
+**We now have a data frame with 800 rows (20 subjects * 20 trials per condition * 2 conditions):**
+
+```{r}
+#| echo: true
+#| eval: true
+
+dim(sim_dat)
+```
+
+## Part 3: Repeated Measures
+
+**We now have a data frame with 800 rows (20 subjects * 20 trials per condition * 2 conditions):**
+
+```{r}
+#| echo: true
+#| eval: true
+
+sim_dat
+```
+
+## Part 3: Repeated Measures
+
+**We now have a data frame with 800 rows (20 subjects * 20 trials per condition * 2 conditions):**
+
+```{r}
+#| echo: true
+#| eval: true
+
+xtabs(~subj + cond.cod, sim_dat)
+```
+
+## Part 3: Repeated Measures
+
+**Similarly, to generate response times:**
+
+- Each of the n subjects' adjustments to the intercept has to be repeated k times.
+- As before, we repeat that vector twice (once for lex_high and once for lex_low).
+
+```{r}
+#| echo: true
+#| eval: true
+#| code-line-numbers: "1|2-4|10|8-12"
+
+# previously we had:
+subject_adj <- round(rnorm(n, mean = 0, sd = 150))
+sim_dat$rt <- (725 +                             
+                 rep(subject_adj, times = 2) +   
+                 50 * cond.cod +                   
+                 rnorm(2*n, mean = 0, sd = 200))
+
+# generate the reaction times for repeater measures:
+sim_dat$rt <- (725 +
+                 rep(rep(round(rnorm(n, 0, 150)), each = k), 2) + # subject adjustments to the intercept
+                 50 * cond.cod +
+                 rnorm(n*k*2, 0, 200))
+```
+
+
+
+## Part 3: Repeated Measures
+
+**Now can fit varying intercepts model again:**
+
+- We cannot do this with a paired t-test anymore, because we have multiple observations per subject.
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+
+m2 <- lmer(rt ~ cond.cod + (1|subj), sim_dat,
+           control = lmerControl(calc.derivs = FALSE))
+summary(m2)
+```
+
+
+## So far, we have:
+
+::: {.incremental}
+- Generated MULTIPLE repeated measures.
+- Now we will generate data with by-subject adjustments to both intercepts AND slopes and unify both in a function.
+:::
+
+## Part 3: Repeated Measures
+
+**The formula for varying intercepts and varying slopes model will look like this:**
+
+```{r}
+#| echo: true
+#| eval: true
+
+m3 <- lmer(rt ~ cond.cod + (1 + cond.cod|subj), sim_dat,
+           control = lmerControl(calc.derivs = FALSE))
+summary(m3)
+```
+
+::: {.callout-note}
+Focus on the correlation between intercept and slope.
+Whenever you see a correlation of -1/+1 between intercept and slope, it indicates that the model is overparameterized. There is not enough data to estimate the correlation.
+
+But do not worry about the correlation, we have not even done by-subject adjustments to the slopes yet. We will do that right now.
+:::
+
+##  {background-color="#43464B"}

@@ -1,0 +1,475 @@
+---
+title: "Simulation-Based Power Analysis"
+subtitle: "Part 1.2: Between-subject design and introduction to linear modeling"
+format:
+  revealjs:
+    theme: serif
+    css: custom.css
+    slide-number: true
+    chalkboard: true
+    code-fold: false
+    code-overflow: wrap
+    scrollable: true
+---
+
+## Part 1.2: Between-subject design and linear modeling
+
+```{r}
+#| echo: false
+#| eval: true
+
+# load packages
+library(tictoc)
+library(MASS)
+library(lme4)
+library(lmerTest)
+library(ggplot2)
+
+options(scipen = 999) # prevents scientific notation
+set.seed(42) # set seed for reproducibility
+```
+
+**Why linear models?**
+
+::: {.incremental}
+- Linear models (LM) are a flexible framework that goes beyond simple comparisons of means (t-tests, ANOVAs).
+- Not only factorial designs, we can have (multiple) continuous predictors.
+- They can be easily extended to linear mixed-effects models (LMEM) for more complex data structures (e.g., repeated measures, hierarchical data).
+- ...to model variability at multiple levels (e.g., subjects, items).
+- ...handles unbalanced data and missing data better (no listwise deletion).
+- Easily extends to generalized linear models (GLMs) for a variety of response variables (e.g., accuracy, counts etc.).
+- The transition to Bayesian modeling is more straightforward.
+:::
+
+## Part 1.2: Between-subject design and linear modeling
+
+**Why linear models?**
+
+::: {.incremental}
+- More importantly, to walk you thought a real-life example where analytical solutions are not available and where existing software (G*Power) falls short.
+- A lot of courses end with "for a more complex design use simulations" but do not show you how to do it.
+- Comes with a disadvantage/advantage: the data generative process (e.g., how we simulate the data) is highly specific to you design.
+- How well do you know your data?
+:::
+
+## Part 1.2: Between-subject design and linear modeling
+
+**What is a linear model? (basic terminology)**
+
+$y  = \beta_0 + \beta_1 * x + \epsilon$
+
+- **Where:**
+- y = response/dependent variable
+- $\beta_0$ = intercept = intercepto
+- $\beta_1$ = slope = pendiente
+- x = predictor/independent variable
+- $\epsilon$ = residual error ~ Normal(0, σ)
+
+## Part 1.2: Between-subject design and linear modeling
+
+**In our example:**
+
+$y  = \beta_0 + \beta_1 * x + \epsilon$
+
+::: {.incremental}
+- $\beta_0$ (intercept) = mean response times across both conditions = 725 ms
+- $\beta_1$ (slope) = the difference between the two conditions = 50 ms
+- x = condition = lexical frequency (coded as -0.5 / +0.5)
+:::
+
+## Part 1.2: Between-subject design and linear modeling
+
+**In our example:**
+
+$y  = \beta_0 + \beta_1 * x + \epsilon$
+
+- $\beta_0$ (intercept) = mean response times across both conditions = 725 ms
+- $\beta_1$ (slope) = the difference between the two conditions = 50 ms
+- x = condition = lexical frequency (coded as -0.5 / +0.5)
+
+**Response times for words with high lexical frequency:**
+
+- 725 + 50*(-0.5) = 700
+
+**Response times for words with low lexical frequency:**
+
+- 725 + 50*(+0.5) = 750
+
+**-0.5 and +0.5 coding is called "effects coding", which is not the default**
+
+## Part 1.2: Between-subject design and linear modeling
+
+**Notice that the default contrast coding for our condition "cond" is 0 and 1, we call this "treatment coding":**
+
+```{r}
+#| echo: false
+#| eval: true
+
+# Specify the data simulation function that we defined earlier:
+betwsubj_simdat_ldt <- function(n = 10,
+                                mean_high = 700, 
+                                mean_low = 750,
+                                stdev = 200) {
+  lex_high <- rnorm(n, mean = mean_high, sd = stdev)
+  lex_low  <- rnorm(n, mean = mean_low,  sd = stdev)
+  subj <- 1:(2 * n)
+  cond <- factor(rep(c("lex_high", "lex_low"), each = n))
+  cond.cod <- ifelse(cond == "lex_high", -0.5, 0.5)
+  # put it together:
+  sim_dat <- data.frame(
+    subj = subj,
+    cond = cond,
+    cond.cod = cond.cod,
+    rt = c(lex_low, lex_high)
+  )
+}
+```
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+sim_dat <- betwsubj_simdat_ldt()
+contrasts(sim_dat$cond)
+```
+## Part 1.2: Between-subject design and linear modeling
+
+**How to interpret treatment coding? (0/1)**
+
+**Response times for words with high lexical frequency:**
+
+::: {.incremental}
+- 700 + 50*(0) = 700
+:::
+
+**Response times for words with low lexical frequency:**
+
+::: {.incremental}
+- 700 + 50*(1) = 750
+:::
+
+::: {.incremental}
+- In the model sumary, the intercept will represent the mean of the reference group (the one coded as 0).
+- The slope represents the difference between the conditions (50 ms in this case).
+:::
+
+## Part 1.2: Between-subject design and linear modeling
+
+**How does R determine the reference group in treatment coding?**
+
+- Alphabetically, so you need to be extra carefull.
+
+
+## Part 1.2: Between-subject design and linear modeling
+
+**Recode to sum to zero contrasts (method 1):**
+```{r}
+#| echo: true
+#| eval: true
+#| code-line-numbers: "|1|2"
+#| output-location: fragment
+
+contrasts(sim_dat$cond) <- contr.sum(2)
+contrasts(sim_dat$cond)
+```
+
+
+## Part 1.2: Between-subject design and linear modeling
+
+**How to interpret sum to zero (sum) contrast coding? (method 1)**
+
+**Response times for words with high lexical frequency:**
+
+::: {.incremental}
+- 725 - 25*(+1) = 700
+:::
+
+**Response times for words with low lexical frequency:**
+
+::: {.incremental}
+- 725 - 25*(-1) = 750
+:::
+
+::: {.incremental}
+- In the model summary, the intercept represents the grand mean across both groups.
+- The slope represents half the difference between the lex_high  - lex_low group (-25 ms in this case).
+:::
+
+
+## Part 1.2: Between-subject design and linear modeling
+
+**Recode to sum contrasts (method 2): creating a vector**
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+sim_dat$cond.cod <- ifelse(sim_dat$cond == "lex_high", -1, 1)
+sim_dat$cond.cod
+```
+## Part 1.2: Between-subject design and linear modeling
+
+**How to interpret sum to zero (sum) contrast coding? (method 2)**
+
+**Response times for words with high lexical frequency:**
+
+::: {.incremental}
+- 725 + 25*(-1) = 700
+:::
+
+**Response times for words with low lexical frequency:**
+
+::: {.incremental}
+- 725 + 25*(+1) = 750
+:::
+
+::: {.incremental}
+- In the model summary, the intercept represents the grand mean across both groups.
+- The slope represents half the difference between the lex_low - lex_high group (+25 ms in this case).
+:::
+
+
+## Part 1.2: Between-subject design and linear modeling
+
+**Recode to sum contrasts (effects coding):**
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+# My personal preference:
+sim_dat$cond.cod <- ifelse(sim_dat$cond == "lex_high", -0.5, 0.5)
+sim_dat$cond.cod
+```
+
+## Part 1.2: Between-subject design and linear modeling
+
+**How to interpret effects coding? (-0.5/0.5)**
+
+**Response times for words with high lexical frequency:**
+
+::: {.incremental}
+- 725 + 50*(-0.5) = 700
+:::
+
+**Response times for words with low lexical frequency:**
+
+::: {.incremental}
+- 725 + 50*(+0.5) = 750
+:::
+
+::: {.incremental}
+- In the model summary the intercept will represents the grand mean across both groups.
+- The slope represents the difference between the lex_low - lex_high group (+50 ms in this case).
+:::
+
+## Excercise {background-color="#43464B"}
+
+## Excercise
+
+**Run the following models with different contrast-coding schemes and look at the output:**
+
+Based on the information presented just now, does the intercept and slope represent what you expect?
+```{r}
+#| echo: true
+#| eval: false
+
+sim_dat <- betwsubj_simdat_ldt()
+
+# treatment coding:
+contrasts(sim_dat$cond) <- contr.treatment(2)
+m <- lm(rt ~ cond, sim_dat)
+summary(m)
+
+# sum to zero coding (method 1):
+contrasts(sim_dat$cond) <- contr.sum(2)
+contrasts(sim_dat$cond)
+
+m <- lm(rt ~ cond, sim_dat)
+summary(m)
+
+# sum to zero coding (method 2):
+sim_dat$cond.cod <- ifelse(sim_dat$cond == "lex_high", -1, 1)
+m <- lm(rt ~ cond.cod, sim_dat)
+summary(m)
+
+# effects coding:
+sim_dat$cond.cod <- ifelse(sim_dat$cond == "lex_high", -0.5, 0.5)
+m <- lm(rt ~ cond.cod, sim_dat)
+summary(m)
+```
+
+
+## Part 1: Between-subject design and linear modeling
+
+**Side-note: Let's compare the test statistics between t-test, ANOVA, and linear model**
+
+```{r}
+#| echo: true
+#| eval: true
+
+(tval <- t.test(rt ~ cond.cod, data = sim_dat)$statistic)
+```
+
+## Part 1.2: Between-subject design and linear modeling
+
+**Side-note: Let's compare the test statistics between t-test, ANOVA, and linear model**
+
+```{r}
+#| echo: true
+#| eval: true
+
+anova(m0 <- lm(rt ~ cond.cod, sim_dat))
+```
+Hay una relación directa entre el valor de t y F = $t^2 = F$
+
+## Part 1.2: Between-subject design and linear modeling
+
+**Side-note: Let's compare the test statistics between t-test, ANOVA, and linear model**
+
+```{r}
+#| echo: true
+#| eval: true
+
+anova(m0 <- lm(rt ~ cond.cod, sim_dat))
+```
+```{r}
+#| echo: true
+#| eval: true
+tval
+tval^2
+```
+
+## Part 1.2: Between-subject design and linear modeling
+
+**Side-note: Let's compare the test statistics between t-test, ANOVA, and linear model**
+
+Look at the t-value from the linear model summary:
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+m0 <- lm(rt ~ cond.cod, sim_dat)
+summary(m0)
+```
+
+## Part 1.2: Between-subject design and linear modeling
+
+**Power analysis through simulation with a simple linear model**
+
+**The same logic as with the t-test applies:**
+
+```{r}
+#| echo: true
+#| eval: true
+
+nsim <- 10000          # determine the number of simulations
+pvals <- rep(NA, nsim) # create an empty vector to store p-values
+
+for(i in 1:nsim) {
+                                          # 1. generate a simulated dataset
+                                          # 2. fit the model
+                                          # 3. extract the p-value for the condition effect
+}
+                                          # 4. count the proportion of p-values less than 0.05
+```
+
+## Part 1.2: Between-subject design and linear modeling
+
+**Power analysis through simulation with a simple linear model**
+
+**The same logic as with the t-test applies:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+nsim <- 10000          # determine the number of simulations
+pvals <- rep(NA, nsim) # create an empty vector to store p-values
+
+for(i in 1:nsim) {
+  sim_dat <- betwsubj_simdat_ldt()          # 1. simulate a dataset
+  m0 <- lm(rt ~ cond.cod, sim_dat)          # 2. fit the model
+  pvals[i] <- summary(m0)$coefficients[2,4] # 3. extract the p-value for the condition effect
+}
+round(mean(pvals < 0.05), 3)                # 4. count the proportion of p-values less than 0.05
+```
+
+## Part 1.2: Between-subject design and linear modeling
+
+**Parameter Recovery**
+
+Can the model, in principle, recover the true parameters under repeated sampling?
+
+```{r}
+#| echo: true
+#| eval: true
+#| code-line-numbers: "||1|3-5|8|9|10|11|1-12"
+
+nsim <- 1000
+
+# create empty matrix to store parameters, there are only three: intercept, slope 
+## and the standard deviation
+params <- matrix(rep(NA, nsim*3), ncol = 3) 
+
+for(i in 1:nsim) {
+  sim_dat <- betwsubj_simdat_ldt()
+  m <- lm(rt ~ cond.cod, sim_dat)
+  params[i,c(1,2)] <- summary(m)$coefficients[,1]
+  params[i,3] <- summary(m)$sigma
+}
+```
+
+## Part 1.2: Between-subject design and linear modeling
+
+**Parameter Recovery Visualization:**
+
+```{r}
+#| echo: false
+#| eval: true
+
+# plot the distribution of the parameters under repeated sampling
+params_df <- data.frame(
+  intercept = params[,1],
+  slope = params[,2],
+  sd = params[,3]
+)
+
+# overlay with true parameters (red lines show true values)
+op <- par(mfrow = c(1,3), pty = "s")
+hist(params[,1], main = "b0", col = "lightblue")
+abline(v=725, col = "red", lwd = 2)
+hist(params[,2], main = "b1", col = "lightblue")
+abline(v=50, col = "red", lwd = 2)
+hist(params[,3], main = "sd residuals", col = "lightblue")
+abline(v=200, col = "red", lwd = 2)
+par(op)
+```
+:::{.incremental}
+- Looks ok. 
+- It tells us that the model can give is accurate estimates of the true parameters under repeated sampling. If we raise the number of subjects, we will have more precise estimates.
+- Later we will see when parameter recovery fails.
+:::
+
+## In this section we have seen: {#background-color="#43464B"}
+
+::: {.incremental}
+- How to perform power analysis using simulations with independent samples t-tests and linear models.
+- We will now simulate data for a within-subjects design.
+:::
+
+## Part 1.2: Between-subject design and linear modeling
+
+**Gentle introduction to linear (mixed effects) models:**
+
+Brown, V. A. (2021). An introduction to linear mixed-effects modeling in R. Advances in Methods and Practices in Psychological Science, 4(1), 2515245920960351.
+
+**For more contrast coding schemes see:**
+
+Schad, D. J., Vasishth, S., Hohenstein, S., & Kliegl, R. (2020). How to capitalize on a priori contrasts in linear (mixed) models: A tutorial. Journal of memory and language, 110, 104038..
+
+##  {background-color="#43464B"}

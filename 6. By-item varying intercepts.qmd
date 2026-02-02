@@ -1,0 +1,320 @@
+---
+title: "Simulation-Based Power Analysis"
+subtitle: "Part 6: Fully crossed design and by-item varying intercepts"
+format:
+  revealjs:
+    theme: serif
+    css: custom.css
+    slide-number: true
+    chalkboard: true
+    code-fold: false
+    code-overflow: wrap
+    scrollable: true
+---
+
+## Part 6: Fully crossed design and by-item varying intercepts
+
+```{r}
+#| echo: false
+#| eval: true
+
+# load packages
+library(tictoc)
+library(MASS)
+library(lme4)
+library(lmerTest)
+library(ggplot2)
+
+options(scipen = 999) # prevents scientific notation
+set.seed(42) # set seed for reproducibility
+```
+
+Why by item varying intercepts?
+
+::: {incremental}
+- Words come from a pool of possible items and come with their own variability.
+- Each item/word will have its own baseline response time, some will be responded faster, and some slower.
+- To simulate this variability we will generate by-item intercept adjustments.
+:::
+
+## Part 6: Fully crossed design and by-item varying intercepts
+
+::: {incremental}
+- Additionally, in this example each word (item) is seen by every subjects, this is called fully crossed design.
+- These data are not independent because responses to the same item are likely to be correlated.
+:::
+
+## Part 6: Fully crossed design and by-item varying intercepts
+
+::: incremental
+- We will generate by-item intercept adjustments.
+- We will account for this variability/dependency in response times by including the following term: (1\|item).
+- Historically, in psycholinguistic studies, two ANOVAs would be run: one averaged over subjects (F1) and one averaged over items (F2). Linear mixed models allow us to include both sources of variability in a single model.
+:::
+
+## Part 6: Fully crossed design and by-item varying intercepts
+
+**Generate fully crossed design:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+#| code-line-numbers: "|4-5"
+
+n = 20  # subjects
+k = 20  # 20 items per condition
+
+# Create fully crossed design: each subject sees all items
+sim_dat <- expand.grid(item = 1:(k*2), subj = 1:n)
+
+# Assign items to conditions (half low, half high frequency)
+sim_dat$cond.cod <- rep(c(-0.5, 0.5), each = k)
+
+sim_dat
+```
+
+## Part 6: Fully crossed design and by-item varying intercepts
+
+**Generate fully crossed design:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+# Sanity check:
+head(xtabs(~subj + item, data = sim_dat))
+```
+
+## Part 6: Fully crossed design and by-item varying intercepts
+
+**Generate by-item intercept adjustments:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| code-line-numbers: "|1|3-4|6"
+#| output-location: fragment
+
+sigma_w = 100   # SD of item random INTERCEPTS
+  
+# Generate item random effects:
+w <- rnorm(n = length(unique(sim_dat$item)), mean = 0, sd = sigma_w)
+
+w
+```
+
+## Part 6: Fully crossed design and by-item varying intercepts
+
+**What is the new term here?**
+
+```{r}
+#| echo: true
+#| eval: false
+#| code-line-numbers: "|3"
+
+rt[i] <- rnorm(1, b0 +                      # grand mean (intercept)
+                 u[sim_dat[i,]$subj,1] +    # subject random intercept
+                 w[sim_dat[i,]$item] +      # item random intercept
+                 (b1 +                      # fixed effect of frequency
+                 u[sim_dat[i,]$subj,2]) * sim_dat[i,]$cond.cod, # subject slope adjustment
+                 sigma)                      # residual error
+
+```
+
+## Part 6: Fully crossed design and by-item varying intercepts
+
+**What is the new term here?**
+
+```{r}
+#| echo: true
+#| eval: false
+
+rt[i] <- rnorm(1, b0 +                      # grand mean (intercept)
+                 u[sim_dat[i,]$subj,1] +    # subject random intercept
+                 w[sim_dat[i,]$item] +      # item random intercept
+                 (b1 +                      # fixed effect of frequency
+                 u[sim_dat[i,]$subj,2]) * sim_dat[i,]$cond.cod, # subject slope adjustment
+                 sigma)                      # residual error
+
+```
+
+$$
+rt_{ij} = \beta_0 + u_{0i} + w_{0j} + (\beta_1 + u_{1i}) \times cond.cod_{ij} + \varepsilon_{ij}
+$$ \
+
+- $w_{0j} \sim Normal(0, 100)$; by-subject adjustments to the grand mean
+
+
+## Part 6: Fully crossed design and by-item varying intercepts
+
+**Putting it all together:**
+
+```{r}
+#| echo: true
+#| eval: true
+
+gendat_ldt_crossed <- function(n = 20,          # subjects
+                               k = 20,          # 20 per condition
+                               b0 = 725,        # grand mean
+                               b1 = 50,         # log-scale frequency effect
+                               sigma_u0 = 150,  # SD of subject random intercepts
+                               sigma_u1 = 20,   # SD of subject random slopes
+                               rho = -0.5,      # correlation between subject intercepts and slopes
+                               sigma_w = 100,   # SD of item random INTERCEPTS only
+                               sigma = 200){    # residual SD
+
+  # Create fully crossed design: each subject sees all items
+  sim_dat <- expand.grid(item = 1:(k*2), subj = 1:n)
+
+  # Assign items to conditions (half low, half high frequency)
+  sim_dat$cond.cod <- rep(c(-0.5, 0.5), each = k)
+
+  # Build variance-covariance matrix for subjects from individual parameters
+  Sigma_u <- matrix(c(sigma_u0^2, rho * sigma_u0 * sigma_u1,
+                      rho * sigma_u0 * sigma_u1, sigma_u1^2), nrow = 2)
+
+  # Subject random effects (intercepts AND slopes):
+  u <- mvrnorm(n = length(unique(sim_dat$subj)),
+               mu = c(0,0), # random intercept and slope
+               Sigma = Sigma_u)
+
+  # Item random effects (intercepts ONLY):
+  w <- rnorm(n = length(unique(sim_dat$item)), mean = 0, sd = sigma_w)
+
+  # generate data row by row:
+  N <- dim(sim_dat)[1]
+  rt <- rep(NA, N)
+  for(i in 1:N){
+    rt[i] <- rnorm(1, b0 +                      # grand mean
+                        u[sim_dat[i,]$subj,1] + # subject random intercept
+                        w[sim_dat[i,]$item] +   # item random intercept
+                      (b1 + 
+                         u[sim_dat[i,]$subj,2]) * sim_dat[i,]$cond.cod,
+                    sigma)                     # residual error
+  }
+  sim_dat$rt <- rt
+  sim_dat$subj <- factor(sim_dat$subj)
+  sim_dat$item <- factor(sim_dat$item)
+  sim_dat
+}
+```
+
+## Part 6: Fully crossed design and by-item varying intercepts
+
+**Test the crossed design:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+sim_dat <- gendat_ldt_crossed(n = 20, 
+                              k = 20,
+                              b0 = 725,
+                              b1 = 50,
+                              sigma_u0 = 150,  # SD subject intercepts
+                              sigma_u1 = 20,   # SD subject slopes
+                              rho = -0.5,      # correlation
+                              sigma_w = 100,   # SD item intercepts
+                              sigma = 200)     # residual SD
+
+# Check the structure
+dim(sim_dat)  # Should be 20 subjects × 40 items = 800 observations
+```
+
+## Part 6: Fully crossed design and by-item varying intercepts
+
+**Test the crossed design:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+head(sim_dat, 41)
+```
+
+## Part 6: Fully crossed design and by-item varying intercepts
+
+**Verify fully crossed structure**
+
+-   Each subject sees 20 items per condition:
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+xtabs(~subj + cond.cod, data = sim_dat)  
+```
+
+## Part 6: Fully crossed design and by-item varying intercepts
+
+**Verify fully crossed structure**
+
+-   Each item is responded by 20 subjects:
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+xtabs(~cond.cod + item, data = sim_dat)  
+```
+
+## Part 6: Fully crossed design and by-item varying intercepts
+
+**Verify fully crossed structure**
+
+-   1 observation per subject-item pair:
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+xtabs(~subj + item, data = sim_dat)      
+```
+
+## Part 6: Fully crossed design and by-item varying intercepts
+
+-   Do the response times data look ok to you or is there something off?
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+sim_dat <- gendat_ldt_crossed(n = 64, k = 40)
+hist(sim_dat$rt, breaks = 30, main = "Histogram of simulated RTs",
+     xlab = "Reaction Time (ms)")
+```
+
+## In this section we have:
+
+...generated data with correlated by-subject adjustments to intercepts and slopes and by-item adjustments to intercepts:
+
+$$
+rt_{ij} = \beta_0 + u_{0i} + w_{0j} + (\beta_1 + u_{1i}) \times cond.cod_{ij} + \varepsilon_{ij}
+$$ where $\varepsilon_{ij} \sim Normal(0, \sigma)$ and
+
+$$
+\begin{pmatrix} u_0 \\ u_1 \end{pmatrix} \sim MVN \left( \begin{pmatrix} 0 \\ 0 \end{pmatrix}, \Sigma_u \right), \quad
+$$
+
+$$
+\Sigma_u = \begin{pmatrix}
+\sigma_{u0}^2 & \rho_u \sigma_{u0} \sigma_{u1} \\
+\rho_u \sigma_{u0} \sigma_{u1} & \sigma_{u1}^2
+\end{pmatrix} \quad
+$$ $$
+\ w_0 \sim N (0, \sigma_w)
+$$
+
+## Next step:
+
+-   We will now model log(rt) to ensure positive reaction times and more realistic distribution.
+
+## Preguntas? {background-color="#43464B"}

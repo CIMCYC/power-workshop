@@ -1,0 +1,479 @@
+---
+title: "Simulation-Based Power Analysis"
+subtitle: "Part 2: Within-Subject Design and Linear Modeling"
+format:
+  revealjs:
+    theme: serif
+    css: custom.css
+    slide-number: true
+    chalkboard: true
+    code-fold: false
+    code-overflow: wrap
+    scrollable: true
+---
+
+## Part 2: Within-subject design and linear modeling
+
+```{r}
+#| echo: false
+#| eval: true
+
+# load packages
+library(tictoc)
+library(MASS)
+library(lme4)
+library(lmerTest)
+library(ggplot2)
+
+options(scipen = 999) # prevents scientific notation
+set.seed(42) # set seed for reproducibility
+```
+
+**More realistic scenario:**
+
+:::{.incremental}
+- Now imagine we have a total of 10 subjects, and each subject sees both low frequency and high frequency condition. 
+- We have to handle subject ids differently to reflect this within-subjects design.
+:::
+
+
+## Part 2: Within-subject design and linear modeling
+
+**More realistic scenario:**
+
+We have to handle subject ids differently to reflect this within-subjects design.
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+#| code-line-numbers: "|5"
+
+n <- 10 # number of subjects
+lex_high <- round(rnorm(n, mean = 700, sd = 200)) 
+lex_low  <- round(rnorm(n, mean = 750, sd = 200)) 
+
+subj <- rep(1:n, times = 2)                             # subject vector
+cond <- factor(rep(c("lex_high", "lex_low"), each = n)) # condition vector
+cond.cod <- ifelse(cond == "lex_high", -0.5, 0.5)       # sum coded condition vector
+
+# put it together:
+sim_dat <- data.frame( 
+  subj = subj,
+  cond = cond,
+  cond.cod = cond.cod,
+  rt = c(lex_high, lex_low)
+)
+```
+
+## Part 2: Within-subject design and linear modeling
+
+**More realistic scenario:**
+
+We now have two observations per subject, one in each condition:
+```{r}
+#| echo: true
+#| eval: true
+#| utput-location: fragment
+
+# print:
+sim_dat
+```
+
+Is that it?
+
+## Part 2: Within-subject design and linear modeling
+
+**Is that it?**
+
+::: {.incremental}
+- No. The previously generated data do not reflect the fact that we have within-subjects data. 
+- We are incorrectly assuming that lex_high and lex_low are independent. 
+- But, the lex_high and lex_low data are paired and therefore dependent because they involve the same subjects.
+- How do we induce dependency in the lex_high and lex_low data?
+:::
+
+## Part 2: Within-subject design and linear modeling
+
+**How do we induce dependency in the lex_high and lex_low data?**
+
+We will assume that each subject has a different true grand mean processing time. We will use this assumption to induce a dependency.
+
+We can assume that:
+
+::: {.incremental}
+- Some subjects have mean processing time that is greater than the grand mean 725.
+- Other subjects have a mean processing time that is smaller than 725.
+- Some subjects have a mean processing time that is the same as 725.
+:::
+
+## Part 2: Within-subject design and linear modeling
+
+**How to induce dependency in the lex_high and lex_low data?**
+
+We can generate random adjustments to the grand mean of 725 by subject by creating a vector of n scores from a random variable that has mean 0 and some standard deviation (for example 150):
+
+## Part 2: Within-subject design and linear modeling
+
+**How to induce dependency in the lex_high and lex_low data?**
+
+We can generate random adjustments to the grand mean of 725 by subject by creating a vector of n scores from a random variable that has mean 0 and some standard deviation (for example 150):
+
+```{r}
+#| echo: true
+#| eval: true
+
+# generate adjustment to the intercept for each subject:
+subject_adj <- round(rnorm(n, mean = 0, sd = 150))
+subject_adj
+```
+
+Here, if a subject has a value of 0 in the by-subject adjustments, it implies that the true grand mean reading time of that subject is 725 ms.
+
+## Part 2: Within-subject design and linear modeling
+
+**How to induce dependency in the lex_high and lex_low data?**
+
+```{r}
+#| echo: true
+#| eval: true
+
+# generate adjustment to the intercept for each subject:
+subject_adj <- round(rnorm(n, mean = 0, sd = 150))
+subject_adj
+
+# subject adjustments added to the grand mean:
+round(725 + subject_adj)
+```
+Now we see that some subjects are faster than 725 ms and some are slower.
+
+
+## Part 2: Within-subject design and linear modeling
+
+```{r}
+#| echo: false
+#| eval: true
+
+# Visualize subject-specific processing speeds
+barplot(subject_adj,
+        main = "Subject-Specific RT Adjustments",
+        ylab = "Adjustment (ms)",
+        xlab = "Subject",
+        col = ifelse(subject_adj > 0, "coral", "lightblue"),
+        names.arg = 1:n)
+abline(h = 0, lty = 2, col = "gray50")
+legend("topright", legend = c("Faster than average", "Slower than average"),
+       fill = c("lightblue", "coral"), cex = 0.8)
+```
+## Part 2: Within-subject design and linear modeling
+
+**Dependent Data Generation**
+
+Previously we had:
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+#| code-line-numbers: "|2-3|14"
+
+n <- 10 # number of subjects
+lex_high <- round(rnorm(n, mean = 700, sd = 200)) 
+lex_low  <- round(rnorm(n, mean = 750, sd = 200)) 
+
+subj <- rep(1:n, times = 2)                             # subject vector
+cond <- factor(rep(c("lex_high", "lex_low"), each = n)) # condition vector
+cond.cod <- ifelse(cond == "lex_high", 0.5, -0.5)       # sum coded condition vector
+
+# put it together:
+sim_dat <- data.frame( 
+  subj = subj,
+  cond = cond,
+  cond.cod = cond.cod,
+  rt = c(lex_high, lex_low) # we will replace this
+)
+```
+
+## Part 2: Within-subject design and linear modeling
+
+**Dependent Data Generation**
+
+Now, we will replace the incorrect rt column in sim_dat with dependent rt values generated as follows:
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+#| code-line-numbers: "|1|2|3|4|6-7"
+
+rt <- round(725 +                             # grand mean
+              rep(subject_adj, times = 2) +   # subject adjustments
+              50 * cond.cod +                 # condition effect  
+              rnorm(2*n, mean = 0, sd = 200)) # residual error
+
+# replace the incorrect rt column in sim_dat with the dependent rt values:            
+sim_dat$rt <- rt  # put the RTs into the data frame, these data are now dependent
+```
+
+## Part 2: Within-subject design and linear modeling
+
+**Dependent Data Generation**
+
+Now, we will replace the incorrect rt column in sim_dat with dependent rt values generated as follows:
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+rt <- round(725 +                             # grand mean
+              rep(subject_adj, times = 2) +   # subject adjustments
+              50 * cond.cod +                 # condition effect  
+              rnorm(2*n, mean = 0, sd = 200)) # residual error
+
+# replace the incorrect rt column in sim_dat with the dependent rt values:            
+sim_dat$rt <- rt  # put the RTs into the data frame, these data are now dependent
+```
+
+Notice that our data generation model is now:
+
+- rt = $\beta_0 + u_0 + \beta_1 * cond.cod + \epsilon$
+- $rt = 725 + u_0 + 50 * cond.cod + ε$
+
+Where:
+
+:::{.incremental}
+- rt = simulated response time
+- 725 = grand mean (intercept)
+- $u_0$ = by-subject adjustment to the grand mean (random intercept) ~ N(0, 150)
+- 50 = condition effect (slope)
+- cond.cod = sum coded condition variable (-0.5 = lex_high, 0.5 = lex_low)
+- ε = residual error ~ N(0, 200)
+:::
+
+## Part 2: Within-subject design and linear modeling
+
+**We can analyze the data with a paired t-test:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+# Paired t-test
+lex_low_vals <- sim_dat$rt[sim_dat$cond == "lex_low"]
+lex_high_vals <- sim_dat$rt[sim_dat$cond == "lex_high"]
+t.test(lex_low_vals, lex_high_vals, paired = TRUE)
+```
+## Part 2: Within-subject design and linear modeling
+
+**Or with linear mixed-effects model:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+m <- lmer(rt ~ cond.cod + (1|subj), sim_dat,
+          control = lmerControl(calc.derivs = FALSE))
+summary(m)
+```
+
+## Part 2: Within-subject design and linear modeling
+
+**Paired t-test and Mixed-Effects Model comparison:**
+
+::: {.incremental}
+- The t-value from the paired t-test and from the linear mixed model are the same.
+- The term (1|subj) in the mixed model refers to the by-subject adjustments to the grand mean that we generated earlier and account for the dependency in the data.
+:::
+
+## Part 2: Within-subject design and linear modeling
+
+**Now generate data multiple times (previously we have done it only once):**
+
+Compare power estimates from the paired t-test and linear mixed-effects model:
+
+```{r}
+#| echo: true
+#| eval: true
+#| code-line-numbers: "|2|4-19|11-14|15-18"
+
+nsim <- 1000
+pvals_paired <- pvals_lmer <- rep(NA, nsim)
+
+for(i in 1:nsim) {
+  subject_adj <- round(rnorm(n, mean = 0, sd = 150)) # generate subject adjustments
+  sim_dat$rt  <- round(725 + 
+                         rep(subject_adj, 2) +
+                         50 * cond.cod + 
+                         rnorm(2*n, 0, 200)
+                       )
+  # for the paired t-test:
+  lex_low_vals    <- sim_dat$rt[sim_dat$cond == "lex_low"]
+  lex_high_vals   <- sim_dat$rt[sim_dat$cond == "lex_high"]
+  pvals_paired[i] <- t.test(lex_low_vals, lex_high_vals, paired = TRUE)$p.value
+  # for the linear mixed-effects model:
+  m_temp <- lmer(rt ~ cond.cod + (1 | subj), sim_dat,
+                 control = lmerControl(calc.derivs = FALSE))
+  pvals_lmer[i] <- summary(m_temp)$coefficients[2,5]
+}
+
+mean(pvals_paired < 0.05) # Paired t-test
+mean(pvals_lmer < 0.05)   # linear mixed-effects model
+```
+
+## Part 2: Within-subject design and linear modeling
+
+**For future simulations, we automate the previous step writing a function:**
+
+```{r}
+#| echo: true
+#| eval: true
+
+withinsubj_simdat <- function(n = 10,            # no. of subjects in each condition
+                              b0 = 725,          # grand mean (intercept)
+                              b1 = 50,           # condition effect (slope)
+                              sigma_u0 = 150,    # sd of random intercepts
+                              sigma = 200        # residual error
+                              ) {  
+  u0 <- round(rnorm(n, mean = 0, sd = sigma_u0)) # generate subject adjustments
+  cond.cod <- rep(c(-0.5,0.5), each = n)         # create sum coded condition vector
+  subj <- rep(1:n, times = 2)                    # subject vector
+  
+  # generate dependent response times:
+  rt <- round(b0 +                                # grand mean
+                rep(u0, times = 2) +              # subject adjustments
+                b1 * cond.cod +                   # condition effect
+                rnorm(2*n, mean = 0, sd = sigma)) # residual error
+  sim_dat <- data.frame(subj = subj, 
+                        cond.cod = cond.cod,
+                        rt = rt)
+  sim_dat
+}
+```
+
+## Part 2: Within-subject design and linear modeling
+
+**Let's see the parameter recovery n=10**
+
+```{r}
+#| echo: true
+#| eval: true
+#| code-line-numbers: "|2-4|6-14|6|8-9|10-13"
+
+nsim <- 1000
+# create empty matrix to store parameters: 
+## intercept, slope, sd of residuals, sd of random intercepts
+params <- matrix(rep(NA, nsim*4), ncol = 4) 
+
+for(i in 1:nsim){
+  sim_dat <- withinsubj_simdat()
+  m <- lmer(rt ~ cond.cod + (1|subj), sim_dat,
+            control = lmerControl(calc.derivs = FALSE))
+  params[i, 1] <- summary(m)$coefficients[1,1]                 # intercept
+  params[i, 2] <- summary(m)$coefficients[2,1]                 # slope
+  params[i, 3] <- sigma_u0 <- attr(VarCorr(m)$subj, "stddev")  # sd of random intercepts
+  params[i, 4] <- sigma_e <- attr(VarCorr(m), "sc")            # residual error
+}
+```
+
+## Part 2: Within-subject design and linear modeling
+
+**Visualize the parameter recovery with n=10**
+
+```{r}
+#| echo: false
+#| eval: true
+
+# overlay with true parameters
+op <- par(mfrow = c(2,2), pty = "s")
+hist(params[,1], main = "b0", col = "lightblue")
+abline(v=725, col = "red", lwd = 2)
+hist(params[,2], main = "b1", col = "lightblue")
+abline(v=50, col = "red", lwd = 2)
+hist(params[,3], main = "sd random intercepts", col = "lightblue")
+abline(v=150, col = "red", lwd = 2)
+hist(params[,4], main = "sd residuals", col = "lightblue")
+abline(v=200, col = "red", lwd = 2)
+par(op) 
+```
+
+- Here we see an issue: the parameter is estimated to be exactly 0 on lot of occasions. We have too little data to recover all the parameters.
+- Also we can observe that the slope (b1) is all over the place.
+
+## Part 2: Within-subject design and linear modeling
+
+**We can re-run the simulation with 100 subjects**
+
+```{r}
+#| echo: true
+#| eval: true
+#| code-line-numbers: "5"
+
+nsim <- 1000
+params <- matrix(rep(NA, nsim*4), ncol = 4) # empty matrix to store parameters: intercept, slope, sd of residuals, sd of random intercepts
+
+for(i in 1:nsim){
+  sim_dat <- withinsubj_simdat(n = 100)                        # this is what we change
+  m <- lmer(rt ~ cond.cod + (1|subj), sim_dat,
+            control = lmerControl(calc.derivs = FALSE))
+  params[i, 1] <- summary(m)$coefficients[1,1]                 # intercept
+  params[i, 2] <- summary(m)$coefficients[2,1]                 # slope
+  params[i, 3] <- sigma_u0 <- attr(VarCorr(m)$subj, "stddev")  # sd of random intercepts
+  params[i, 4] <- sigma_e <- attr(VarCorr(m), "sc")            # residual error
+}
+```
+
+## Part 2: Within-subject design and linear modeling
+
+```{r}
+#| echo: false
+#| eval: true
+
+# overlay with true parameters
+op <- par(mfrow = c(2,2), pty = "s")
+hist(params[,1], main = "b0", col = "lightblue")
+abline(v=725, col = "red", lwd = 2)
+hist(params[,2], main = "b1", col = "lightblue")
+abline(v=50, col = "red", lwd = 2)
+hist(params[,3], main = "sd random intercepts", col = "lightblue")
+abline(v=150, col = "red", lwd = 2)
+hist(params[,4], main = "sd residuals", col = "lightblue")
+abline(v=200, col = "red", lwd = 2)
+par(op)
+```
+With n = 100 we have much more narrow, precise, estimates.
+Through parameter recovery, we can see if we have sufficient data to detect the parameters of interest.
+
+## Part 2: Within-subject design and linear modeling
+
+**So far, we have simulated only one observation per condition per subject:**
+```{r}
+#| echo: true
+#| eval: true
+
+head(xtabs(~subj + cond.cod, sim_dat))
+```
+
+## Part 2: Within-subject design and linear modeling
+
+So far, our model is:
+
+- rt = 725 + $u_0$ + 50 * cond.cod + ε
+- rt = $\beta_0 + u_0 + \beta_1 * cond.cod + \epsilon$
+
+Where:
+
+:::{.incremental}
+- $u_0$ = by-subject adjustment to the grand mean (random intercept) ~ N(0, 150)
+- $\epsilon$ = residual error ~ N(0, 200)
+:::
+
+## In this section, we have:
+
+::: {.incremental}
+- Simulated data for a within-subjects design (repeated measures), with by-subject adjustments to the intercepts.
+- Compared paired t-test and linear mixed-effects model.
+- Now we will generated MULTIPLE repeated measures per condition per subject.
+:::
+
+##  {background-color="#43464B"}

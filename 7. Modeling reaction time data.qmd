@@ -1,0 +1,519 @@
+---
+title: "Simulation-Based Power Analysis"
+subtitle: "Part 7: Modeling reaction time data: log-normal distribution"
+format:
+  revealjs:
+    theme: serif
+    css: custom.css
+    slide-number: true
+    chalkboard: true
+    code-fold: false
+    code-overflow: wrap
+    scrollable: true
+---
+
+## Part 7: Modeling reaction time data: log-normal distribution
+
+```{r}
+#| echo: false
+#| eval: true
+
+# load packages
+library(tictoc)
+library(MASS)
+library(lme4)
+library(lmerTest)
+library(ggplot2)
+
+options(scipen = 999) # prevents scientific notation
+set.seed(42) # set seed for reproducibility
+```
+
+```{r}
+#| echo: false
+#| eval: true
+
+gendat_ldt_crossed <- function(n = 20,          # subjects
+                               k = 20,          # 20 per condition
+                               b0 = 725,        # grand mean
+                               b1 = 50,         # log-scale frequency effect
+                               sigma_u0 = 150,  # SD of subject random intercepts
+                               sigma_u1 = 20,   # SD of subject random slopes
+                               rho = -0.5,      # correlation between subject intercepts and slopes
+                               sigma_w = 100,   # SD of item random INTERCEPTS only
+                               sigma = 200){    # residual SD
+
+  # Create fully crossed design: each subject sees all items
+  sim_dat <- expand.grid(item = 1:(k*2), subj = 1:n)
+
+  # Assign items to conditions (half low, half high frequency)
+  sim_dat$cond.cod <- rep(c(-0.5, 0.5), each = k)
+
+  # Build variance-covariance matrix for subjects from individual parameters
+  Sigma_u <- matrix(c(sigma_u0^2, rho * sigma_u0 * sigma_u1,
+                      rho * sigma_u0 * sigma_u1, sigma_u1^2), nrow = 2)
+
+  # Subject random effects (intercepts AND slopes):
+  u <- mvrnorm(n = length(unique(sim_dat$subj)),
+               mu = c(0,0), # random intercept and slope
+               Sigma = Sigma_u)
+
+  # Item random effects (intercepts ONLY):
+  w <- rnorm(n = length(unique(sim_dat$item)), mean = 0, sd = sigma_w)
+
+  # generate data row by row:
+  N <- dim(sim_dat)[1]
+  rt <- rep(NA, N)
+  for(i in 1:N){
+    rt[i] <- rnorm(1, b0 +                      # grand mean
+                        u[sim_dat[i,]$subj,1] + # subject random intercept
+                        w[sim_dat[i,]$item] +   # item random intercept
+                      (b1 + 
+                         u[sim_dat[i,]$subj,2]) * sim_dat[i,]$cond.cod,
+                    sigma)                     # residual error
+  }
+  sim_dat$rt <- rt
+  sim_dat$subj <- factor(sim_dat$subj)
+  sim_dat$item <- factor(sim_dat$item)
+  sim_dat
+}
+```
+
+```{r}
+#| echo: false
+#| eval: true
+#| output-location: fragment
+
+sim_dat <- gendat_ldt_crossed(n = 64, k = 40)
+hist(sim_dat$rt, breaks = 30, main = "Histogram of simulated RTs",
+     xlab = "Reaction Time (ms)")
+```
+
+::: incremental
+- Reaction times data are typically right-skewed.
+- Let's load some real data from a lexical decision task (LDT).
+:::
+
+## Part 7: Modeling reaction time data: log-normal distribution
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+library(rio)
+dat <- import("/Users/Filip/Desktop/MdM_2025/_Curso1 - power_analysis/_simulations final/ldt_data.csv")
+head(dat)
+```
+
+## Part 7: Modeling reaction time data: log-normal distribution
+
+**Assuming that the reaction times are normally distributed:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+m <- lmer(RT ~ wrd_freq.cod + (1 + wrd_freq.cod|subject) + (1|stimuli), data = dat)
+summary(m)
+```
+
+## Part 7: Modeling reaction time data: log-normal distribution
+
+**Check the model's assumptions:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+#| fig-width: 8
+#| fig-height: 8
+
+performance::check_model(m)
+```
+
+## Part 7: Modeling reaction time data: log-normal distribution
+
+**Assuming that the reaction times are log-normally distributed:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+m_log <- lmer(log(RT) ~ wrd_freq.cod + (1 + wrd_freq.cod|subject) + (1|stimuli), data = dat)
+summary(m_log)
+```
+
+## Part 7: Modeling reaction time data: log-normal distribution
+
+**Check the model's assumptions:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+#| fig-width: 8
+#| fig-height: 8
+
+performance::check_model(m_log)
+```
+
+## Part 7: Modeling reaction time data: log-normal distribution
+
+**How to back transform from log(ms) to ms?**
+
+```{r}
+#| echo: true
+#| eval: true
+
+# effects on a log scale
+b0 <- 6.59         # grand mean
+b1 <- 0.10         # main effect of lexical frequency
+b1_stderr <- 0.02  # standard error of b1
+```
+
+## Part 7: Modeling reaction time data: log-normal distribution
+
+**How to back transform from log(ms) to ms?**
+
+-   For high frequency condition: log(rt) = b0 + b1\*-0.5
+
+```{r}
+#| echo: true
+#| eval: true
+#| code-line-numbers: "|1-2|4-5|7-8|10-11"
+#| output-location: fragment
+
+# exponentiate both sides:
+# exp(log(rt_high)) = exp(b0 + b1*-0.5) 
+
+# exp(log()) cancels out:
+# rt_high  = exp(b0 + b1*-0.5)   
+
+# substituting values:
+# rt_high = exp(6.59 + 0.10*-0.5)
+
+# prints result:
+exp(6.59 + 0.10*-0.5)
+```
+
+## Part 7: Modeling reaction time data: log-normal distribution
+
+**How to back transform from log(ms) to ms?**
+
+-   For low frequency condition: log(rt) = b0 + b1\*0.5
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+# rt_low = exp(6.59 + 0.10*0.5)
+exp(6.59 + 0.10*0.5)
+```
+
+## Part 7: Modeling reaction time data: log-normal distribution
+
+**Calculate the difference between the two conditions:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+# exp(b0 + b1*0.5) - exp(b0 + b1*-0.5)
+exp(6.59 + 0.10*0.5) - exp(6.59 + 0.10*-0.5)
+```
+
+## Part 7: Modeling reaction time data: log-normal distribution
+
+- Since we know that the standard error is 0.02 on the log scale, we can compute a 95% confidence interval for the effect of lexical frequency:
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+# effects on a log scale
+b0 <- 6.59         # grand mean
+b1 <- 0.10         # main effect of lexical frequency
+b1_stderr <- 0.02  # standard error of b1
+
+lower <- b1 - 1.96 * b1_stderr # 95% CI lower bound
+upper <- b1 + 1.96 * b1_stderr # 95% CI upper bound
+
+lower; upper
+```
+
+- If we adopt more Bayesian thinking here, the effect could be as small/high as the lower/upper bound of this interval.
+
+## Part 7: Modeling reaction time data: log-normal distribution
+
+**If we adopt more Bayesian thinking here, the effect could be as small/high as:**
+
+...convert to milliseconds:
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+# If the effect was as low as the lower bound:
+exp(b0+lower*(0.5)) - exp(b0+lower*(-0.5)) # 95% CI lower bound
+
+# If the effect was as high as the upper bound:
+exp(b0+upper*(0.5)) - exp(b0+upper*(-0.5))
+```
+
+::: incremental
+-   On the ms scale we see that it is a lot of uncertainty about the effect size.
+-   Remember, in frequentist thinking, the effect is a point estimate.
+-   If we adopt more Bayesian thinking: effect \~ Normal(0.10, 0.02).
+:::
+
+## Part 7: Modeling reaction time data: log-normal distribution
+
+**Function to generate data for fully crossed design with log-normal RTs:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| code-line-numbers: "|3|4|5|6|7|8|9|33"
+
+gendat_ldt_crossed_log <- function(n = 20,          # subjects
+                                   k = 20,          # 20 per condition
+                                   b0 = 6.59,       # grand mean log(RT) (exp(6.55) ≈ 700ms)
+                                   b1 = 0.10,       # log-scale frequency effect (≈70 on RT scale)
+                                   sigma_u0 = 0.2,  # SD of subject random intercepts (log scale)
+                                   sigma_u1 = 0.02, # SD of subject random slopes (log scale)
+                                   rho = -0.5,      # correlation between subject intercepts and slopes
+                                   sigma_w = 0.1,   # SD of item random INTERCEPTS only (log scale)
+                                   sigma = 0.25){   # residual SD (log scale)
+
+  # Create fully crossed design: each subject sees all items
+  sim_dat <- expand.grid(item = 1:(k*2), subj = 1:n)
+
+  # Assign items to conditions (half low, half high frequency)
+  sim_dat$cond.cod <- rep(c(-0.5, 0.5), each = k)
+
+  # Build variance-covariance matrix for subjects from individual parameters
+  Sigma_u <- matrix(c(sigma_u0^2, rho * sigma_u0 * sigma_u1,
+                      rho * sigma_u0 * sigma_u1, sigma_u1^2), nrow = 2)
+
+  # Subject random effects (intercepts AND slopes):
+  u <- mvrnorm(n = length(unique(sim_dat$subj)),
+               mu = c(0,0), 
+               Sigma = Sigma_u)
+
+  # Item random effects (intercepts ONLY):
+  w <- rnorm(n = length(unique(sim_dat$item)), mean = 0, sd = sigma_w)
+
+  # generate data row by row:
+  N <- dim(sim_dat)[1]
+  rt <- rep(NA, N)
+  for(i in 1:N){
+    rt[i] <- rlnorm(1, b0 +                     # grand mean
+                        u[sim_dat[i,]$subj,1] + # subject random intercept
+                        w[sim_dat[i,]$item] +   # item random intercept
+                      (b1 + 
+                        u[sim_dat[i,]$subj,2]) * sim_dat[i,]$cond.cod,
+                     sigma)                     # residual error
+  }
+  sim_dat$rt <- rt
+  sim_dat$subj <- factor(sim_dat$subj)
+  sim_dat$item <- factor(sim_dat$item)
+  sim_dat
+}
+```
+
+## Part 7: Modeling reaction time data: log-normal distribution
+
+**Check the distribution of RTs (should be right-skewed):**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+sim_dat <- gendat_ldt_crossed_log(n = 100, k = 100)
+
+hist(sim_dat$rt, main = "Distribution of Simulated RTs (Log-Normal)",
+     xlab = "RT (ms)", col = "lightblue", breaks = 50)
+```
+
+## Part 7: Modeling reaction time data: log-normal distribution
+
+**Sanity checks:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+sim_dat <- gendat_ldt_crossed_log(n = 20, k = 20)
+
+m <- lmer(log(rt) ~ cond.cod + (1 + cond.cod|subj) + (1|item), sim_dat,
+                  control = lmerControl(calc.derivs = FALSE))
+summary(m)
+```
+
+## Part 7: Modeling reaction time data: log-normal distribution
+
+**Power analysis:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+nsim <- 1000 
+pvals <- rep(NA, nsim)
+
+for(i in 1:nsim){
+  sim_dat <- gendat_ldt_crossed_log(n = 20,
+                                k = 20,
+                                b0 = 6.59,
+                                b1 = 0.10,
+                                sigma_u0 = 0.2,
+                                sigma_u1 = 0.02,
+                                rho = -0.5,
+                                sigma_w = 0.1,
+                                sigma = 0.25)
+
+  m <- lmer(log(rt) ~ cond.cod + (1 + cond.cod|subj) + (1|item), sim_dat,
+            control = lmerControl(calc.derivs = FALSE))
+  
+  pvals[i] <- summary(m)$coefficients[2,5]
+}
+
+power <- round(mean(pvals < 0.05), digits = 4)
+power
+```
+
+## Part 7: Modeling reaction time data: log-normal distribution
+
+**Parameter recovery:**
+
+```{r}
+#| echo: true
+#| eval: true
+
+nsim <- 1000
+params <- matrix(rep(NA, nsim*7), ncol = 7)
+
+for(i in 1:nsim){
+  sim_dat <- gendat_ldt_crossed_log(n = 20, 
+                                    k = 20,
+                                    b0 = 6.59,
+                                    b1 = 0.10,
+                                    sigma_u0 = 0.2,
+                                    sigma_u1 = 0.02,
+                                    rho = -0.5,
+                                    sigma_w = 0.1,
+                                    sigma = 0.25)
+
+  m <- lmer(log(rt) ~ cond.cod + (1 + cond.cod|subj) + (1|item), sim_dat,
+            control = lmerControl(calc.derivs = FALSE))
+
+  # Fixed effects
+  params[i, 1] <- summary(m)$coefficients[1,1]   # b0: intercept
+  params[i, 2] <- summary(m)$coefficients[2,1]   # b1: slope
+
+  # Residual SD
+  params[i, 3] <- attr(VarCorr(m), "sc") # sigma: residuals
+
+  # Random effects
+  vc <- as.data.frame(VarCorr(m))
+  params[i, 4] <- vc$sdcor[1]  # sigma_w: SD item random intercepts
+  params[i, 5] <- vc$sdcor[2]  # sigma_u1: SD subject random slopes
+  params[i, 6] <- vc$sdcor[3]  # sigma_u0: SD subject random intercepts
+  params[i, 7] <- vc$sdcor[4]  # rho: correlation between subject intercepts and slopes
+}
+```
+
+## Part 7: Modeling reaction time data: log-normal distribution
+
+**Parameter recovery visualization:**
+
+```{r}
+#| echo: false
+#| eval: true
+
+# Visualize parameter recovery (all on log scale)
+op <- par(mfrow = c(3,4), pty = "s")
+
+hist(params[,1], main = "b0 (Intercept)", col = "lightblue")
+abline(v=6.59, col = "red", lwd = 2)
+
+hist(params[,2], main = "b1 (Effect)", col = "lightblue")
+abline(v=0.10, col = "red", lwd = 2)
+
+hist(params[,3], main = "sigma (Residuals)", col = "lightblue")
+abline(v=0.25, col = "red", lwd = 2)
+
+hist(params[,4], main = "sigma_u0 (Item Intercepts)", col = "lightblue")
+abline(v=0.10, col = "red", lwd = 2)
+
+hist(params[,5], main = "sigma_w (Subj Intercepts)", col = "lightblue")
+abline(v=0.20, col = "red", lwd = 2)
+
+hist(params[,6], main = "sigma_u1 (Subj Slopes)", col = "lightblue")
+abline(v=0.02, col = "red", lwd = 2)
+
+hist(params[,7], main = "rho (Correlation)", col = "lightblue")
+abline(v=-0.50, col = "red", lwd = 2)
+
+par(op)
+```
+
+## Part 7: Modeling reaction time data: log-normal distribution
+
+**Type 1 error rate:**
+
+-   Repeatedly generate data with NO effect (b1 = 0) to check for false positive rate.
+-   Should be around 0.05 (5%):
+
+```{r}
+#| echo: true
+#| eval: true
+
+nsim <- 1000
+pvals <- rep(NA, nsim)
+failed <- rep(NA, nsim)
+
+for(i in 1:nsim){
+  sim_dat <- gendat_ldt_crossed_log(n = 20, 
+                                    k = 20,
+                                    b0 = 6.59,
+                                    b1 = 0,         # NO EFFECT
+                                    sigma_u0 = 0.2,
+                                    sigma_u1 = 0.0, # NO SLOPE ADJUSTMENT
+                                    rho = 0.0,
+                                    sigma_w = 0.1,
+                                    sigma = 0.25)
+  
+  m <- lmer(log(rt) ~ cond.cod + (1 + cond.cod|subj) + (1|item), sim_dat,
+            control = lmerControl(calc.derivs = FALSE))
+  
+  pvals[i] <- summary(m)$coefficients[2,5]
+}
+
+type1_error <- mean(pvals < 0.05)
+type1_error
+```
+
+## In this section, we have:
+
+...generated data from a log-normal distribution to simulate realistic reaction time data.
+
+::: callout-tip
+An interactive shiny app to check some other distributions for reaction times data: https://lindeloev.shinyapps.io/shiny-rt/
+:::
+
+$$
+log(rt_{ij}) = \beta_0 + u_{0i} + w_{0j} + (\beta_1 + u_{1i}) \times cond.cod_{ij} + \varepsilon_{ij}
+$$
+
+## Preguntas? {background-color="#43464B"}

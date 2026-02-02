@@ -1,0 +1,544 @@
+---
+title: "Simulation-Based Power Analysis"
+subtitle: "Part 4: By-participant adjustments to the slope"
+format:
+  revealjs:
+    theme: serif
+    css: custom.css
+    slide-number: true
+    chalkboard: true
+    code-fold: false
+    code-overflow: wrap
+    scrollable: true
+---
+
+## Part 4: By-participant adjustments to the slope
+
+```{r}
+#| echo: false
+#| eval: true
+
+# load packages
+library(tictoc)
+library(MASS)
+library(lme4)
+library(lmerTest)
+library(ggplot2)
+
+options(scipen = 999) # prevents scientific notation
+set.seed(42) # set seed for reproducibility
+```
+
+:::{.incremental}
+- So far, we have been adjusting only the intercepts of each subject (their mean processing speed).
+- Let's assume that subjects not only differ in their mean processing speed, but also in the size of the lexical frequency effect.
+:::
+
+## Part 4: By-participant adjustments to the slope
+
+:::{.incremental}
+- Some subjects will have larger lexical frequency effects. 
+- Some subjects smaller effects. 
+- Some will have the mean lexical frequency effect (50 ms). 
+- Let's assume that subjects variation around the mean slope can be modeled as comming from a normal distribution with a mean 0 and standard deviation of 20:
+- $u_1 \sim Normal(0, 20)$
+:::
+
+## Part 4: By-participant adjustments to the slope
+
+```{r}
+#| echo: false
+#| eval: true
+
+# From previous section
+n <- 20  # subjects
+k <- 20  # 20 per condition, 40 trials in total
+
+# the cond vector has to be made n * k times long for each condition
+cond.cod <- rep(c(-0.5, 0.5), each = n * k)
+
+# subject vector: each of the n subject ids has to be repeated k times, 
+# and there are two conditions, so the whole vector has to be repeated twice;
+# this can be implemented with two rep() functions:
+subj <- rep(rep(1:n, each = k), times = 2)
+
+# create data frame
+sim_dat <- data.frame(
+  subj = subj,
+  cond.cod = cond.cod
+)
+```
+
+**We can generate by-participant adjustments to the slope like this:**
+```{r}
+#| echo: true
+#| eval: true
+
+(u1 <- round(rnorm(n, mean = 0, sd = 20)))
+```
+
+- Some subjects show a large frequency effect, others show small effect
+
+
+## Part 4: By-participant adjustments to the slope
+
+**Add these adjustments to the mean slope of 50 ms:**
+```{r}
+#| echo: true
+#| eval: true
+
+(50 + u1)
+```
+
+- Some subjects have a larger effect and some have a smaller effect than the true 50 ms effect.
+- We are adding a variability
+
+
+## Part 4: By-participant adjustments to the slope
+
+**We can now generate the data with varying slopes by subject:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| code-line-numbers: "|3-4"
+
+rt <- 725 + 
+         rep(rep(round(rnorm(n,0,150)), each = k), times = 2) +
+      (50 + 
+         rep(rep(round(rnorm(n,0,20)), each = k), times = 2)) * cond.cod +
+      rnorm(n*k*2,0,200)
+
+sim_dat$rt <- rt
+```
+
+## Part 4: By-participant adjustments to the slope
+
+**We can now generate the data with varying slopes by subject:**
+
+```{r}
+#| echo: true
+#| eval: true
+
+rt <- 725 + 
+         rep(rep(round(rnorm(n,0,150)), each = k), times = 2) +
+      (50 + 
+         rep(rep(round(rnorm(n,0,20)), each = k), times = 2)) * cond.cod +
+      rnorm(n*k*2,0,200)
+
+sim_dat$rt <- rt
+```
+
+This generative process can be written as: 
+
+$$
+rt_{ij} = \beta_0 + u_{0i} + (\beta_1 + u_{1i}) \times cond.cod_{ij} + \varepsilon_{ij}
+$$
+where:
+
+:::{.incremental}
+- $u_{0i} \sim Normal(0, 150)$; by-subject adjustments to the grand mean
+- $u_{1i} \sim Normal(0, 20)$; by-subject  adjustments to the mean slope
+- $\epsilon \sim Normal(0, 200)$; the residual error
+- This generative process - corresponds to the varying intercepts AND varying slopes model.
+:::
+
+## Part 4: By-participant adjustments to the slope
+
+**Visualize by-subject slopes:**
+
+```{r}
+#| echo: false
+#| eval: true
+#| fig-width: 6
+#| fig-height: 6
+
+gg_xyplot <- function(x, y, formula, shape, size,
+                      xlabel = "Lexical Frequency",
+                      ylabel = "RT (ms)",
+                      data = sim_dat) {
+  ggplot(data = data, aes(x = data[,x],
+                          y = data[,y])) +
+    facet_wrap(formula) +
+    geom_smooth(method = "lm") +
+    geom_point(color = "blue",
+               shape = shape,
+               size = size) +
+    theme(panel.grid.minor = element_blank()) +
+    theme_bw() +
+    ylab(ylabel) +
+    xlab(xlabel)
+}
+
+# Show first 16 subjects
+sim_dat_subset <- sim_dat[sim_dat$subj %in% 1:16, ]
+gg_xyplot(x = "cond.cod", y = "rt", formula = ~subj,
+          shape = 16, size = 1, data = sim_dat_subset)
+```
+
+## Part 4: By-participant adjustments to the slope
+
+Fit the following model which assumes that each subject has a different grand mean and different slope.
+
+```{r}
+#| echo: true
+#| eval: true
+
+# The double vertical bar means we do not assume a correlation here 
+## (previously we've seen that it was -1)
+m3 <- lmer(rt ~ cond.cod + (1 + cond.cod||subj), sim_dat,
+           control = lmerControl(calc.derivs = FALSE))
+```
+
+## Part 4: By-participant adjustments to the slope
+
+Fit the following model which assumes that each subject has a different grand mean and different slope.
+```{r}
+#| echo: true
+#| eval: true
+
+# The double vertical bar means we do not assume a correlation here 
+## (previously we've seen that it was -1)
+m3 <- lmer(rt ~ cond.cod + (1 + cond.cod||subj), sim_dat,
+           control = lmerControl(calc.derivs = FALSE))
+
+summary(m3)
+```
+
+## Part 4: By-participant adjustments to the slope
+
+**Now a more sophisticated approach (generating a matrix with adjustments)**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+#| code-line-numbers: "|13-20"
+
+# number of subjects
+n <- 20
+# number of replicates
+k <- 20
+# generate data frame with subject and condition column:
+cond.cod <- rep(c(-0.5,0.5), each = n * k)
+
+sim_dat <- data.frame(
+  subj = rep(rep(1:n, each = k), times = 2),
+  cond.cod = cond.cod
+)
+
+sigma_u0 <- 150
+sigma_u1 <- 20
+
+u <- data.frame(subject = 1:n,
+                u0 = rnorm(n, 0, sigma_u0), # random intercepts
+                u1 = rnorm(n, 0, sigma_u1)  # random slopes
+)
+```
+
+
+## Part 4: By-participant adjustments to the slope
+
+We'll use the matrix u to plug into the data generating formula:
+$$
+rt_{i} = \beta_0 + u_{0i} + (\beta_1 + u_{1i}) \times cond.cod_{i} + \varepsilon_{i}
+$$
+
+```{r}
+#| echo: true
+#| eval: true
+
+head(u)
+```
+
+
+## Part 4: By-participant adjustments to the slope
+
+```{r}
+#| echo: true
+#| eval: true
+#| code-line-numbers: "|11-18"
+
+# record the number of rows in the data frame sim_dat:
+nrows <- dim(sim_dat)[1]
+
+# create a vector to store reading times generated ROW BY ROW:
+rt <- rep(NA, nrows)
+
+b0 <- 725
+b1 <- 50
+sigma <- 200
+
+# run a for-loop to create response times row by row:
+for(i in 1:nrows) {
+  rt[i] <- b0 +                                             # grand mean
+    u[sim_dat[i,]$subj,]$u0 +                               # random intercept adjustments                         
+    (b1 
+     + u[sim_dat[i,]$subj,]$u1) * sim_dat[i,]$cond.cod +    # random slope adjustment
+    rnorm(1, 0, sigma)                                      # residual error
+}
+
+# Add rt to sim_dat
+sim_dat$rt <- rt
+```
+
+## Part 4: By-participant adjustments to the slope
+
+**Let's uderstand these lines of code:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| code-line-numbers: "|1|3-4|6-8"
+
+# u[sim_dat[i,]$subj,]$u0
+
+# the inside expression: extract the subject id for the i-th row of sim_dat:
+#   sim_dat[i,]$subj
+
+# use this subject id to look up appropriate subject adjustments 
+## to the intercept and the slope in the data frame u for that subject
+# u[sim_dat[i,]$subj,]$u0
+```
+
+## Part 4: By-participant adjustments to the slope
+
+**Let's uderstand these lines of code:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+# for example, if we are in the first row of sim_dat:
+i = 1
+
+# subject id of the first row in sim_dat
+sim_dat[i,]$subj
+
+# intercept adjustment for subject 1 in the data frame u:
+u[sim_dat[i,]$subj,]$u0  
+
+# slope adjustment for subject 1 in the data frame u:
+u[sim_dat[i,]$subj,]$u1
+
+# check if this coincides with the values in the data frame u:
+head(u)
+```
+
+## Part 4: By-participant adjustments to the slope
+
+**That's how this rt-generation works:**
+```{r}
+#| echo: true
+#| eval: false
+
+# run a for-loop to create response times row by row:
+for(i in 1:nrows) {
+  rt[i] <- b0 +                                             # grand mean
+    u[sim_dat[i,]$subj,]$u0 +                               # random intercept adjustments                         
+    (b1 
+     + u[sim_dat[i,]$subj,]$u1) * sim_dat[i,]$cond.cod +    # random slope adjustment
+    rnorm(1, 0, sigma)                                      # residual error
+}
+```
+
+
+## Part 4: By-participant adjustments to the slope
+
+**Sanity check**
+
+- Fit the same model as m3 to this data.
+- Print out the summary of the model, and check whether the model's parameter estimates approximately match the numbers you used to generate the data.
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+# Fit the same model as m3 (random intercepts and slopes, no correlation)
+m3_check <- lmer(rt ~ cond.cod + (1 + cond.cod||subj), sim_dat,
+                 control = lmerControl(calc.derivs = FALSE))
+summary(m3_check)
+```
+
+## Part 4: By-participant adjustments to the slope
+
+**We will:**
+
+::: {.incremental}
+1. Write a function called gendat_ldt that generates data with the following input: 
+
+- the sample size n, 
+- the number of repetitions per condition k, 
+- the grand mean, 
+- the lexical frequency effect, 
+- and the three standard deviations (for by-subject intercepts, by-subject slopes, and residuals.
+
+2. Then write a for loop.
+3. Fit the model.
+4. Calculate the proportion of time the absolute value of the t-score for the slope (the lexical frequency effect) is greater than 2
+- ... this is the estimated power
+5. Finally we will check whether the model can recover the true parameters.
+:::
+
+## Part 4: By-participant adjustments to the slope
+
+```{r}
+#| echo: true
+#| eval: true
+
+gendat_ldt <- function(n = 20,          # subjects
+                       k = 20,          # trials per condition per subject
+                       b0 = 725,        # grand mean RT
+                       b1 = 50,         # frequency effect (50 ms with ±0.5 coding)
+                       sigma_u0 = 150,  # SD of subject random intercepts
+                       sigma_u1 = 30,   # SD of subject random slopes
+                       sigma = 200){    # residual SD
+
+  u <- data.frame(subject = 1:n,
+                  u0 = rnorm(n, 0, sigma_u0),
+                  u1 = rnorm(n, 0, sigma_u1))
+
+  cond.cod <- rep(c(-0.5, 0.5), each = n * k)
+  subj <- rep(rep(1:n, each = k), times = 2)
+  sim_dat <- data.frame(subj = subj, 
+                        cond.cod = cond.cod)
+
+  nrows <- dim(sim_dat)[1]
+  rt <- rep(NA, nrows)
+
+  for(i in 1:nrows) {
+    rt[i] <- b0 +
+      u[sim_dat[i,]$subj,]$u0 +
+      (b1 + u[sim_dat[i,]$subj,]$u1) * sim_dat[i,]$cond.cod +
+      rnorm(1, 0, sigma)
+  }
+
+  sim_dat$rt <- rt
+  sim_dat
+}
+```
+
+## Part 4: By-participant adjustments to the slope
+
+**Test the function:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+sim_dat <- gendat_ldt(n = 20, 
+                      k = 20,
+                      b0 = 725, 
+                      b1 = 50,
+                      sigma_u0 = 100, 
+                      sigma_u1 = 30,
+                      sigma = 200)
+
+# Fit model
+m <- lmer(rt ~ cond.cod + (1 + cond.cod||subj), sim_dat,
+          control = lmerControl(calc.derivs = FALSE))
+summary(m)
+```
+
+## Part 4: By-participant adjustments to the slope
+
+**Power estimation:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+nsim <- 1000
+tvals <- rep(NA, nsim)
+
+for(i in 1:nsim){
+  sim_dat <- gendat_ldt(n = 20, 
+                        k = 20,
+                        b0 = 725, 
+                        b1 = 50,
+                        sigma_u0 = 150, 
+                        sigma_u1 = 30,
+                        sigma = 200)
+
+  m <- lmer(rt ~ cond.cod + (1 + cond.cod||subj), sim_dat,
+            control = lmerControl(calc.derivs = FALSE))
+  tvals[i] <- summary(m)$coefficients[2,4]
+}
+
+# Calculate power
+power_estimate <- mean(abs(tvals) > 2)
+round(power_estimate, 3)
+```
+
+## Part 4: By-participant adjustments to the slope
+
+**Paremeter recovery:**
+
+```{r}
+#| echo: true
+#| eval: true
+
+nsim <- 1000
+params <- matrix(rep(NA, nsim*5), ncol = 5)
+
+for(i in 1:nsim){
+  sim_dat <- gendat_ldt(n = 20, 
+                        k = 40,
+                        b0 = 725, 
+                        b1 = 50,
+                        sigma_u0 = 150, 
+                        sigma_u1 = 30,
+                        sigma = 200)
+  m <- lmer(rt ~ cond.cod + (1 + cond.cod||subj), sim_dat,
+            control = lmerControl(calc.derivs = FALSE))
+  params[i, 1] <- summary(m)$coefficients[1,1]  # intercept
+  params[i, 2] <- summary(m)$coefficients[2,1]  # slope
+  params[i, 3] <- attr(VarCorr(m), "sc")        # sd residuals
+  vc <- as.data.frame(VarCorr(m))
+  params[i, 4] <- vc$sdcor[1]                   # sd random intercepts
+  params[i, 5] <- vc$sdcor[2]                   # sd random slopes
+}
+```
+
+## Part 4: By-participant adjustments to the slope
+
+**Parameter recovery visualization:**
+
+```{r}
+#| echo: false
+#| eval: true
+
+# Visualize parameter recovery
+op <- par(mfrow = c(2,3), pty = "s")
+hist(params[,1], main = "b0 (Intercept)", col = "lightblue")
+abline(v=725, col = "red", lwd = 2)
+hist(params[,2], main = "b1 (Frequency Effect)", col = "lightblue")
+abline(v=50, col = "red", lwd = 2)
+hist(params[,4], main = "SD Random Intercepts", col = "lightblue")
+abline(v=150, col = "red", lwd = 2)
+hist(params[,5], main = "SD Random Slopes", col = "lightblue")
+abline(v=30, col = "red", lwd = 2)
+hist(params[,3], main = "SD Residuals", col = "lightblue")
+abline(v=200, col = "red", lwd = 2)
+par(op)
+```
+
+## So far we have:
+
+Generated data with by-subject adjustments to both intercepts AND slopes:
+
+$$
+rt_{ij} = \beta_0 + u_{0i} + (\beta_1 + u_{1i}) \times cond.cod_{ij} + \varepsilon_{ij}
+$$
+where:
+        
+- $u_{0i} \sim Normal(0, 150)$; by-subject adjustments to the grand mean
+- $u_{1i} \sim Normal(0, 20)$; by-subject adjustments to the mean slope
+
+We will now generate data with CORRELATED by-subject adjustments to intercepts and slopes.
+
+##  Preguntas? {background-color="#43464B"}

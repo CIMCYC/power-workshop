@@ -1,0 +1,287 @@
+---
+title: "Simulation-Based Power Analysis"
+subtitle: "Part 1: Introduction to simulations and between-subject design"
+format:
+  revealjs:
+    theme: serif
+    css: custom.css
+    slide-number: true
+    chalkboard: true
+    code-fold: false
+    code-overflow: wrap
+    scrollable: true
+---
+
+## Part 1: Introduction to simulations and between-subject design
+
+**The logic of simulations for power analysis:**
+
+::: incremental
+1.  Define how data are generated (the data-generating process).
+2.  Simulate data according to that process.
+3.  Fit the statistical model to the simulated data and extract relevant statistics (t-values, p-values).
+4.  Repeat step 2. & 3. many times (1000x).
+5.  Calculate power as a proportion of p-values \< 0.05 = proportion of times the effect is detected when it is present.
+6.  Understand which parameters can be in principle recovered.
+7.  We will repeat this for different effect sizes, and sample sizes to see how these factors influence power.
+:::
+
+## Part 1: Introduction to simulations and between-subject design
+
+**Examples covered:**
+
+::: incremental
+1.  Between-Subjects Design: just to get to used to the logic of simulations for power analysis: independent samples t-test and linear models.
+2.  Within-Subjects Design for repeated measures: paired t-test and linear mixed effect models.
+:::
+
+## Part 1: Introduction to simulations and between-subject design {background-color="#43464B"}
+
+### Lexical Decision Task (LDT)
+
+::: incremental
+1.  LDT is a common experimental paradigm in psycholinguistics/cognitive science.
+2.  In LDT, participants decide as quickly as possible whether a string of letters is a real word or a pseudoword.
+3.  We manipulate a characteristics of real words (e.g., word frequency, word length, etc.) and measure how this affects reaction times (RTs) and accuracy.
+4.  (Pseudowords are not of interest and generally not analyzed).
+5.  In this course, we will simulate data for an LDT experiment comparing reaction times for high-frequency words versus low-frequency words.
+:::
+
+::: notes
+Note: Include an example of trials of this task
+:::
+
+## Part 1: Introduction to simulations and between-subject design
+
+::: incremental
+1.  Imagine we have reaction times data in milliseconds from 10 participants who responded to high frequency words and different 10 participants respond to low frequency words.
+2.  Assume that the standard deviation is 200 ms, the true mean reaction times for high frequency words is 700 ms, and true reaction times for low frequency words is 750 ms.
+3.  Therefore the true difference between high and low frequency words is 50 ms.
+4.  How do we simulate these data?
+:::
+
+## Part 1: Introduction to simulations and between-subject design
+
+**Setup**
+
+Install packages if not already installed (needs to be run only once):
+
+```{r}
+#| echo: true
+#| eval: false
+
+install.packages("tictoc")   # for timing
+install.packages("MASS")     # for multivariate normal distribution 
+install.packages("lme4")     # for mixed models
+install.packages("lmerTest") # for p-values in mixed models
+install.packages("ggplot2")  # for plotting
+```
+
+Load packages (run every time you start a new R session):
+
+```{r}
+#| echo: true
+#| eval: true
+
+library(tictoc)
+library(MASS)
+library(lme4)
+library(lmerTest)
+library(ggplot2)
+
+options(scipen = 999) # prevents scientific notation
+set.seed(42) # set seed for reproducibility
+```
+
+## Part 1: Introduction to simulations and between-subject design
+
+**Simulate a single dataset for a between-subject design like this one:**
+
+-   Take 10 samples from $Normal(\mu = 700, \sigma = 200)$
+-   Take 10 samples from $Normal(\mu = 750, \sigma = 200)$
+-   Create a data frame by adding a subject id.
+
+## Part 1: Introduction to simulations and between-subject design
+
+**Generate between-subjects data:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+#| code-line-numbers: "|1|2|4|5|6|8-14|15-16"
+
+lex_high  <- rnorm(10, mean = 700, sd = 200) # generate data for low frequency words
+lex_low <- rnorm(10, mean = 750, sd = 200) # generate data for high frequency words
+
+subj <- 1:20                                      # create subject IDs
+cond <- rep(c("lex_high", "lex_low"), each = 10)  # create condition factor
+cond.cod <- ifelse(cond == "lex_high", -0.5, 0.5) # I will explain this later
+
+# put it together:
+sim_dat <- data.frame(
+  subj = subj,
+  cond = cond,
+  cond.cod = cond.cod,
+  rt = c(lex_low, lex_high)
+)
+# print:
+sim_dat
+```
+
+## Part 1: Introduction to simulations and between-subject design
+
+**How can we repeatedly generate such data? Write a function (with some default values):**
+
+```{r}
+#| echo: true
+#| eval: true
+#| code-line-numbers: "|1-4|9"
+
+betwsubj_simdat_ldt <- function(n = 10,
+                                mean_high = 700, 
+                                mean_low = 750,
+                                stdev = 200) {
+  # generate data:
+  lex_high <- rnorm(n, mean = mean_high, sd = stdev)
+  lex_low  <- rnorm(n, mean = mean_low,  sd = stdev)
+  
+  subj <- 1:(2 * n)
+  cond <- factor(rep(c("lex_high", "lex_low"), each = n))
+  cond.cod <- ifelse(cond == "lex_high", -0.5, 0.5)
+  
+  # put it together:
+  sim_dat <- data.frame(
+    subj = subj,
+    cond = cond,
+    cond.cod = cond.cod,
+    rt = c(lex_low, lex_high)
+  )
+}
+```
+
+## Part 1: Introduction to simulations and between-subject design
+
+**Now you can repeatedly generate simulated data:**
+
+```{r}
+#| echo: true
+#| eval: false
+
+for(i in 1:100) {
+  sim_dat <- betwsubj_simdat_ldt()
+}
+```
+
+We will do that for:
+
+:::{.incremental}
+-   power analysis
+-   to check if our model recovers the parameters correctly under repeated runs of the experiment (with new simulated data each time).
+:::
+
+## Part 1: Introduction to simulations and between-subject design
+
+**Analytical solution (no simulations yet):**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+round(power.t.test(delta = 50, n = 10,
+                   sd = 200,
+                   type = "two.sample",
+                   alternative = "two.sided",
+                   strict = TRUE)$power, 3)
+```
+
+## Part 1: Introduction to simulations and between-subject design
+
+**Using simulations:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+#| code-line-numbers: "|1-2|3-4|6|7-8|9-10|13-15"
+
+# define the number of simulations:
+nsim <- 1000      
+# create an empty vector to store p-values:
+pvals <- rep(NA, nsim)
+
+for(i in 1:nsim) {
+  # generate a simulated dataset for "i" 
+  sim_dat <- betwsubj_simdat_ldt() 
+  # store the p-value from the test in a vector pvals
+  pvals[i] <- t.test(rt ~ cond.cod, data = sim_dat)$p.value
+}
+
+# print power:
+power <- mean(pvals < 0.05)
+power
+```
+
+::: callout-note
+For simple, between subject designs, you can use analytical solutions. However, simulations become essential for more complex designs.
+:::
+
+## Part 1: Between-subject design and linear modeling
+
+::: incremental
+-   So far, we have learned how to compute power using simulation in between-subjects designs using the independent samples t-test.
+-   Next, we will learn how to compute power using simulation in between-subjects designs using the linear modeling framework.
+-   After that, we will learn how to compute power using simulation in within-subjects designs using paired t-test and linear mixed effect models.
+-   ...but first, let's practice what we have learned so far!
+:::
+
+## Excercise {background-color="#43464B"}
+
+## Excercise
+
+**Modify the code below to compute power through simulations for a between-subject design:**
+
+Play with the number of simulations, sample size per condition, means for low and high frequency words, and standard deviation.
+
+```{r}
+#| echo: true
+#| eval: false
+#| code-line-numbers: "|1-2|10-13"
+
+# define the number of simulations:
+nsim <- # MODIFY HERE      
+  
+# create an empty vector to store p-values:
+pvals <- rep(NA, nsim)
+
+# run the simulations nsim times:
+tic()
+for(i in 1:nsim) {
+  sim_dat <- betwsubj_simdat_ldt(n = # MODIFY HERE ,
+                                 lex_high = # MODIFY HERE , 
+                                 lex_low = # MODIFY HERE ,
+                                 stdev = # MODIFY HERE 
+  ) 
+  # store the p value from the test in a vector pvals
+  pvals[i] <- t.test(rt ~ cond.cod, data = sim_dat)$p.value
+}
+toc()
+
+# estimate power as the proportion of times the absolute t-value exceeds the critical t-value
+power_sim <- mean(pvals < 0.05)
+# print power:
+round(power_sim, 3)
+```
+
+## Excercise
+
+You can answer questions such as:
+
+1.  How many subject would you need to achieve a power of at least 0.8 given a true difference of 50 ms and standard deviation of 200 ms?
+2.  How many subject would you need to achieve a power of at least 0.8 given a true difference of 30 ms and standard deviation of 200 ms?
+3.  What if the standard deviation was only 100 ms?
+4.  Extra: Can you solve this analytically?
+5.  Extra: How do the simulation results compare to the analytical solution? How many simulations do you need to get stable results?
+
+##  {background-color="#43464B"}
