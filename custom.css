@@ -29,7 +29,7 @@
 .reveal h2 {
   color: #2E86AB;
   font-weight: bold;
-  font-size: 1.8em; /* Relative to base font size */
+  font-size: 1.2em; /* Relative to base font size */
 }
 
 /* Top-level heading (h1) styling */
@@ -47,12 +47,12 @@
 
 /* Paragraph and list text */
 .reveal p, .reveal li {
-  font-size: 0.9em;
+  font-size: 0.8em;
 }
 
 /* Code block styling */
 .reveal pre {
-  font-size: 0.6em; /* Smaller code blocks */
+  font-size: 0.5em; /* Smaller code blocks */
   line-height: 1.2;
   background-color: #E8E8E8; /* Concrete gray background */
   border: 1px solid #CCCCCC; /* Subtle border */
@@ -64,6 +64,11 @@
 .reveal pre code {
   background-color: transparent; /* Don't double-apply background */
   color: #2C3E50; /* Dark gray text for better readability */
+}
+
+/* R code comments in green */
+.reveal pre code .co {
+  color: #27AE60; /* Green for comments */
 }
 
 /* Inline code styling */
@@ -160,3 +165,46 @@
   visibility: visible !important;
 }
 */
+
+/* Multiple logos container - displays three logos in the corner */
+.reveal .slide-logo {
+  display: none !important; /* Hide the default single logo */
+}
+
+/* Custom multiple logos container */
+.reveal::after {
+  content: "";
+  position: fixed;
+  bottom: 10px;
+  right: 50px;
+  width: 444px;
+  height: 50px;
+  background-image:
+    url('cimcyc_logo.png'),
+    url('MdM_logo.png'),
+    url('ugr_logo.png');
+  background-size:
+    auto 45px,
+    auto 45px,
+    auto 45px;
+  background-repeat: no-repeat, no-repeat, no-repeat;
+  background-position:
+    left center,
+    center center,
+    right center;
+  z-index: 100;
+  pointer-events: none;
+}
+
+/* Move slide number to top-right corner */
+.reveal .slide-number {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  bottom: auto;
+  left: auto;
+  font-size: 14px;
+  background-color: transparent;
+  color: #4a4a4a;
+  padding: 5px 10px;
+}

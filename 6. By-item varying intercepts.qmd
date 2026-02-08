@@ -1,6 +1,12 @@
 ---
 title: "Simulation-Based Power Analysis"
 subtitle: "Part 6: Fully crossed design and by-item varying intercepts"
+author:
+  - name: "Filip Andras, David López-García & David Sánchez Casasola"
+    affiliations:
+      - name: "Centro de Investigación Mente Cerebro y Comportamiento (CIMCYC), Universidad de Granada"
+date: "2 February 2026"
+date-format: "D MMMM YYYY"
 format:
   revealjs:
     theme: serif
@@ -10,6 +16,7 @@ format:
     code-fold: false
     code-overflow: wrap
     scrollable: true
+    footer: "Justificación del tamaño muestral y análisis de potencia estadística | v2026"
 ---
 
 ## Part 6: Fully crossed design and by-item varying intercepts
@@ -31,7 +38,7 @@ set.seed(42) # set seed for reproducibility
 
 Why by item varying intercepts?
 
-::: {incremental}
+::: {.incremental}
 - Words come from a pool of possible items and come with their own variability.
 - Each item/word will have its own baseline response time, some will be responded faster, and some slower.
 - To simulate this variability we will generate by-item intercept adjustments.
@@ -39,7 +46,7 @@ Why by item varying intercepts?
 
 ## Part 6: Fully crossed design and by-item varying intercepts
 
-::: {incremental}
+::: {.incremental}
 - Additionally, in this example each word (item) is seen by every subjects, this is called fully crossed design.
 - These data are not independent because responses to the same item are likely to be correlated.
 :::

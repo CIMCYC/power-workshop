@@ -1,0 +1,241 @@
+---
+title: "Exercise 1: Power Simulation for Between-Subject Design"
+subtitle: "From Part 1: Introduction to simulations and between-subject design"
+format: html
+editor: visual
+---
+
+## Setup
+
+First, load the required packages:
+
+```{r}
+#| echo: true
+#| eval: true
+
+library(tictoc)
+
+options(scipen = 999) # prevents scientific notation
+set.seed(42) # set seed for reproducibility
+```
+
+## The Data Generation Function
+
+This function generates simulated data for a between-subjects lexical decision task:
+
+```{r}
+#| echo: true
+#| eval: true
+
+betwsubj_simdat_ldt <- function(n = 10,
+                                mean_high = 700,
+                                mean_low = 750,
+                                stdev = 200) {
+  # generate data:
+  lex_high <- rnorm(n, mean = mean_high, sd = stdev)
+  lex_low  <- rnorm(n, mean = mean_low,  sd = stdev)
+
+  subj <- 1:(2 * n)
+  cond <- factor(rep(c("lex_high", "lex_low"), each = n))
+  cond.cod <- ifelse(cond == "lex_high", -0.5, 0.5)
+
+  # put it together:
+  sim_dat <- data.frame(
+    subj = subj,
+    cond = cond,
+    cond.cod = cond.cod,
+    rt = c(lex_high, lex_low)
+  )
+}
+```
+
+------------------------------------------------------------------------
+
+## Exercise Instructions
+
+**Modify the code below to compute power through simulations for a between-subject design:**
+
+Play with the number of simulations, sample size per condition, means for low and high frequency words, and standard deviation.
+
+```{r}
+#| echo: true
+#| eval: false
+
+# define the number of simulations:
+nsim <- # MODIFY HERE
+
+# create an empty vector to store p-values:
+pvals <- rep(NA, nsim)
+
+# run the simulations nsim times:
+tic()
+for(i in 1:nsim) {
+  sim_dat <- betwsubj_simdat_ldt(n = # MODIFY HERE ,
+                                 mean_high = # MODIFY HERE ,
+                                 mean_low = # MODIFY HERE ,
+                                 stdev = # MODIFY HERE
+  )
+  # store the p value from the test in a vector pvals
+  pvals[i] <- t.test(rt ~ cond.cod, data = sim_dat)$p.value
+}
+toc()
+
+# estimate power as the proportion of times the absolute p-value is less than 0.05:
+power_sim <- mean(pvals < 0.05)
+# print power:
+round(power_sim, 3)
+```
+
+## Questions to Answer
+
+1.  How many subjects would you need to achieve a power of at least 0.8 given a true difference of 50 ms and standard deviation of 200 ms?
+2.  How many subjects would you need to achieve a power of at least 0.8 given a true difference of 30 ms and standard deviation of 200 ms?
+3.  What if the standard deviation was only 100 ms?
+4.  Extra: Can you solve this analytically?
+5.  Extra: How do the simulation results compare to the analytical solution? How many simulations do you need to get stable results?
+
+------------------------------------------------------------------------
+
+# SOLUTIONS
+
+## Question 1: Power ≥ 0.8 with difference = 50 ms, SD = 200 ms
+
+After trying different sample sizes to find the one that gives us at least 80% power:
+
+```{r}
+#| echo: true
+#| eval: true
+
+# define the number of simulations:
+nsim <- 1000
+
+pvals <- rep(NA, nsim)
+
+tic()
+for(i in 1:nsim) {
+  sim_dat <- betwsubj_simdat_ldt(n = 253,  # change n per group untill you achieve 80% power
+                                 mean_high = 700,
+                                 mean_low = 750,
+                                 stdev = 200
+  )
+  pvals[i] <- t.test(rt ~ cond.cod, data = sim_dat)$p.value
+}
+toc()
+
+power <- mean(pvals < 0.05)
+round(power, 3)
+```
+
+**Answer:** You need approximately **253-254 subjects per group (506-508 total subjects)** to achieve 80% power with a 50 ms difference and SD = 200 ms.
+
+------------------------------------------------------------------------
+
+## Question 2: Power ≥ 0.8 with difference = 30 ms, SD = 200 ms
+
+```{r}
+#| echo: true
+#| eval: true
+
+# define the number of simulations:
+nsim <- 10000
+
+# create an empty vector to store p-values:
+pvals <- rep(NA, nsim)
+
+for(i in 1:nsim) {
+  sim_dat <- betwsubj_simdat_ldt(n = 709, # change n per group untill you achieve 80% power
+                                 mean_high = 700,
+                                 mean_low = 730,  # 30 ms difference
+                                 stdev = 200
+  )
+  pvals[i] <- t.test(rt ~ cond.cod, data = sim_dat)$p.value
+}
+
+power <- mean(pvals < 0.05)
+round(power, 3)
+```
+
+**Answer:** You need approximately **709 subjects per group (1418 total subjects)** to achieve 80% power with a 30 ms difference and SD = 200 ms. The smaller effect size requires substantially more participants.
+
+**Important note:** We are simulating the case where each subject responds to only one trial from only one of the conditions (between subject design). In reality, we would have multiple trials per subject (often from both conditions in a within-subjects design), which would dramatically reduce the required sample size.
+
+------------------------------------------------------------------------
+
+## Question 3: What if the standard deviation was only 100 ms?
+
+```{r}
+#| echo: true
+#| eval: true
+
+nsim = 1000
+
+pvals <- rep(NA, nsim)
+
+for(i in 1:nsim) {
+  sim_dat <- betwsubj_simdat_ldt(n = 64, # change n per group untill you achieve 80% power
+                                 mean_high = 700,
+                                 mean_low = 750,
+                                 stdev = 100  # Reduced SD
+  )
+  pvals[i] <- t.test(rt ~ cond.cod, data = sim_dat)$p.value
+}
+
+power <- mean(pvals < 0.05)
+round(power, 3)
+```
+
+**Answer:** With SD = 100 ms (half the original), you need approximately:
+
+-   **64 subjects per group (128 total)** for 80% power with 50 ms difference
+-   You can increase power by either increasing the signal (larger mean difference) OR decreasing the noise (smaller SD)
+-   We can reduce noise through better experimental control (example: running experiments in lab vs. online).
+
+------------------------------------------------------------------------
+
+## Question 4 & 5: Analytical Solution and Comparison
+
+```{r}
+#| echo: true
+#| eval: true
+
+# Analytical solution using power.t.test()
+
+# Question 1: 50 ms difference, SD = 200
+analytical_q1 <- power.t.test(delta = 50, sd = 200, power = 0.80,
+                              type = "two.sample", alternative = "two.sided")
+analytical_q1
+
+# Question 2: 30 ms difference, SD = 200
+analytical_q2 <- power.t.test(delta = 30, sd = 200, power = 0.80,
+                              type = "two.sample", alternative = "two.sided")
+
+analytical_q2
+
+# Question 3: 50 ms difference, SD = 100
+analytical_q3 <- power.t.test(delta = 50, sd = 100, power = 0.80,
+                               type = "two.sample", alternative = "two.sided")
+
+analytical_q3
+```
+
+**Analytical results:**
+
+-   Question 1: **253 subjects per group**
+-   Question 2: **699 subjects per group**
+-   Question 3: **64 subjects per group**
+
+Observe that we always need to round UP to the next whole number (for example, we cannot have 63.76 subjects).
+
+------------------------------------------------------------------------
+
+## Why Do Simulation and Analytical Results Differ?
+
+You may notice that our simulation results don't perfectly match the analytical solutions. Each simulation run produces slightly different results due to random sampling. With 1000 simulations, you typically get power estimates within ±2-3 percentage points of the true value.
+
+For more stable results (±1%), you may need \~2000 simulations. The more simulations you run, the closer you get to the analytical solution, but with diminishing returns.
+
+------------------------------------------------------------------------
+
+**Why bother with simulations?** For simple t-tests, analytical solutions exist. But for complex designs (mixed models, multilevel data, non-normal distributions), analytical solutions often don't exist—simulations become essential.
+
+With t-tests we can easily run 10,000 simulations in seconds. With more complex models (like mixed-effects models), each simulation takes longer, and we'll need to be more strategic about computational resources. In the final part of this course, we will run simulations across different effect sizes and sample sizes, computing confidence intervals around our power estimates to quantify uncertainty.

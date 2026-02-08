@@ -1,0 +1,293 @@
+---
+title: "Exercise 2: Contrast Coding Schemes in Linear Models"
+subtitle: "From Part 1.2: Between-subject design and linear modeling"
+format: html
+editor: visual
+---
+
+## Setup
+
+```{r}
+#| echo: true
+#| eval: true
+
+options(scipen = 999) # prevents scientific notation
+set.seed(42) # set seed for reproducibility
+```
+
+## The Data Generation Function
+
+This function generates simulated data for a between-subjects lexical decision task:
+
+```{r}
+#| echo: true
+#| eval: true
+
+betwsubj_simdat_ldt <- function(n = 10,
+                                mean_high = 700,
+                                mean_low = 750,
+                                stdev = 200) {
+  lex_high <- rnorm(n, mean = mean_high, sd = stdev)
+  lex_low  <- rnorm(n, mean = mean_low,  sd = stdev)
+  subj <- 1:(2 * n)
+  cond <- factor(rep(c("lex_high", "lex_low"), each = n))
+  cond.cod <- ifelse(cond == "lex_high", -0.5, 0.5)
+  # put it together:
+  sim_dat <- data.frame(
+    subj = subj,
+    cond = cond,
+    cond.cod = cond.cod,
+    rt = c(lex_high, lex_low)
+  )
+}
+```
+
+## Background: What Are Contrast Coding Schemes?
+
+In linear models, how we code categorical predictors affects how we interpret the model coefficients:
+
+| Coding Scheme | Codes | Intercept Interpretation | Slope Interpretation |
+|-----------------|-----------------|---------------------|------------------|
+| Treatment (0/1) | 0, 1 | Mean of reference group | Difference from reference |
+| Sum-to-zero (-1/+1) | -1, +1 | Grand mean | Half the difference |
+| Effects (-0.5/+0.5) | -0.5, +0.5 | Grand mean | Full difference |
+
+**In our example:** 
+
+- True mean for lex_high = 700 ms 
+- True mean for lex_low = 750 ms 
+- Grand mean = 725 ms 
+- Difference = 50 ms
+
+------------------------------------------------------------------------
+
+## Exercise Instructions
+
+**Run the following models with different contrast-coding schemes and look at the output:**
+
+Based on the information presented, determine whether the intercept and slope represent what you expect for each coding scheme.
+
+```{r}
+#| echo: true
+#| eval: false
+
+sim_dat <- betwsubj_simdat_ldt()
+
+# treatment coding:
+contrasts(sim_dat$cond) <- contr.treatment(2)
+m <- lm(rt ~ cond, sim_dat)
+summary(m)
+
+# sum to zero coding (method 1):
+contrasts(sim_dat$cond) <- contr.sum(2)
+contrasts(sim_dat$cond)
+
+m <- lm(rt ~ cond, sim_dat)
+summary(m)
+
+# sum to zero coding (method 2):
+sim_dat$cond.cod <- ifelse(sim_dat$cond == "lex_high", -1, 1)
+m <- lm(rt ~ cond.cod, sim_dat)
+summary(m)
+
+# effects coding:
+sim_dat$cond.cod <- ifelse(sim_dat$cond == "lex_high", -0.5, 0.5)
+m <- lm(rt ~ cond.cod, sim_dat)
+summary(m)
+```
+
+------------------------------------------------------------------------
+
+# SOLUTIONS
+
+## Generate the Data
+
+```{r}
+#| echo: true
+#| eval: true
+
+# Generate data with a LARGE sample for clearer results
+sim_dat <- betwsubj_simdat_ldt(n = 10000)
+```
+
+------------------------------------------------------------------------
+
+## 1. Treatment Coding (0/1)
+
+```{r}
+#| echo: true
+#| eval: true
+
+contrasts(sim_dat$cond) <- contr.treatment(2)
+contrasts(sim_dat$cond)
+
+m <- lm(rt ~ cond, sim_dat)
+summary(m)
+```
+
+### Interpretation of Treatment Coding:
+
+**Expected values:**
+
+-   Intercept ≈ 700 ms (mean of lex_high, the reference group coded as 0)
+-   Slope (cond2) ≈ +50 ms (difference: lex_low - lex_high)
+
+**Why?**
+
+-   R assigns the reference level alphabetically, so "lex_high" comes first and gets coded as 0
+-   The intercept represents the mean when cond = 0 (i.e., lex_high)
+-   The slope represents what happens when we move from 0 to 1 (i.e., from lex_high to lex_low)
+
+**Formula:**
+
+-   RT(lex_high) = Intercept + Slope × 0 = Intercept ≈ 700
+-   RT(lex_low) = Intercept + Slope × 1 = Intercept + Slope ≈ 750
+
+------------------------------------------------------------------------
+
+## 2. Sum-to-Zero Coding Method 1 (using contr.sum)
+
+```{r}
+#| echo: true
+#| eval: true
+
+# Sum-to-zero coding using contr.sum()
+contrasts(sim_dat$cond) <- contr.sum(2)
+cat("Contrast matrix for sum-to-zero coding:\n")
+contrasts(sim_dat$cond)
+```
+
+```{r}
+#| echo: true
+#| eval: true
+
+m_sum1 <- lm(rt ~ cond, sim_dat)
+summary(m_sum1)
+```
+
+### Interpretation of Sum-to-Zero Coding (Method 1):
+
+**Expected values:**
+
+-   Intercept ≈ 725 ms (grand mean)
+-   Slope (cond1) ≈ -25 ms (half the difference, with sign depending on coding direction)
+
+**Why?**
+
+-   contr.sum(2) assigns +1 to lex_high and -1 to lex_low
+-   The intercept represents the grand mean (average of both group means) - The slope represents HALF the difference between conditions
+
+**Formula:**
+
+-   RT(lex_high) = 725 + (-25) × (+1) = 700
+-   RT(lex_low) = 725 + (-25) × (-1) = 750
+
+------------------------------------------------------------------------
+
+## 3. Sum-to-Zero Coding Method 2 (manual -1/+1)
+
+```{r}
+#| echo: true
+#| eval: true
+
+# Manual sum-to-zero coding: lex_high = -1, lex_low = +1
+sim_dat$cond.cod <- ifelse(sim_dat$cond == "lex_high", -1, 1)
+xtabs( ~ cond.cod, data = sim_dat)
+```
+
+```{r}
+#| echo: true
+#| eval: true
+
+m_sum2 <- lm(rt ~ cond.cod, sim_dat)
+summary(m_sum2)
+```
+
+### Interpretation of Sum-to-Zero Coding (Method 2):
+
+**Expected values:**
+
+-   Intercept ≈ 725 ms (grand mean)
+-   Slope ≈ +25 ms (half the difference: (lex_low - lex_high) / 2)
+
+**Why?**
+
+-   We manually coded lex_high = -1 and lex_low = +1 (opposite of contr.sum default)
+-   The intercept still represents the grand mean
+-   The slope represents HALF the difference, but with opposite sign compared to Method 1
+
+**Formula:** 
+
+- RT(lex_high) = 725 + 25 × (-1) = 700 
+- RT(lex_low) = 725 + 25 × (+1) = 750
+
+------------------------------------------------------------------------
+
+## 4. Effects Coding (-0.5/+0.5)
+
+```{r}
+#| echo: true
+#| eval: true
+
+# Effects coding: lex_high = -0.5, lex_low = +0.5
+sim_dat$cond.cod <- ifelse(sim_dat$cond == "lex_high", -0.5, 0.5)
+xtabs( ~ cond.cod, data = sim_dat)
+```
+
+```{r}
+#| echo: true
+#| eval: true
+
+m_effects <- lm(rt ~ cond.cod, sim_dat)
+summary(m_effects)
+```
+
+### Interpretation of Effects Coding:
+
+**Expected values:**
+
+-   Intercept ≈ 725 ms (grand mean)
+-   Slope ≈ +50 ms (the FULL difference: lex_low - lex_high)
+
+**Why?**
+
+-   The intercept represents the grand mean (same as sum coding)
+-   The slope represents the FULL difference between conditions (not half!)
+-   This is because the codes differ by 1 unit: 0.5 - (-0.5) = 1
+
+**Formula:** 
+
+- RT(lex_high) = 725 + 50 × (-0.5) = 700 
+- RT(lex_low) = 725 + 50 × (+0.5) = 750
+
+**This is often the preferred coding scheme** because:
+
+1. The intercept is the grand mean (easy to interpret)
+
+2. The slope is the actual difference between conditions (no need to multiply by 2)
+
+------------------------------------------------------------------------
+
+## Resumiendo
+
+1.  **All coding schemes give the same predicted values** - only the interpretation of coefficients changes
+
+2.  **Treatment coding (0/1):**
+
+    -   Intercept = reference group mean
+    -   Slope = difference from reference
+    -   Useful when you have a clear baseline/control group
+
+3.  **Sum-to-zero coding (-1/+1):**
+
+    -   Intercept = grand mean
+    -   Slope = HALF the difference
+    -   Remember to multiply the slope by 2 to get the full effect!
+
+4.  **Effects coding (-0.5/+0.5):**
+
+    -   Intercept = grand mean
+    -   Slope = FULL difference
+    -   Often preferred for factorial designs and when comparing to ANOVA
+
+5.  **For power analysis and simulation**, effects coding (-0.5/+0.5) is convenient because the slope parameter directly represents the effect size you're trying to detect.

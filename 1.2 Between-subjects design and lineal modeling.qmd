@@ -1,6 +1,12 @@
 ---
 title: "Simulation-Based Power Analysis"
 subtitle: "Part 1.2: Between-subject design and introduction to linear modeling"
+author:
+  - name: "Filip Andras, David López-García & David Sánchez Casasola"
+    affiliations:
+      - name: "Centro de Investigación Mente Cerebro y Comportamiento (CIMCYC), Universidad de Granada"
+date: "2 February 2026"
+date-format: "D MMMM YYYY"
 format:
   revealjs:
     theme: serif
@@ -10,6 +16,7 @@ format:
     code-fold: false
     code-overflow: wrap
     scrollable: true
+    footer: "Justificación del tamaño muestral y análisis de potencia estadística | v2026"
 ---
 
 ## Part 1.2: Between-subject design and linear modeling
@@ -120,7 +127,7 @@ betwsubj_simdat_ldt <- function(n = 10,
     subj = subj,
     cond = cond,
     cond.cod = cond.cod,
-    rt = c(lex_low, lex_high)
+    rt = c(lex_high, lex_low)
   )
 }
 ```
@@ -264,9 +271,9 @@ sim_dat$cond.cod
 - The slope represents the difference between the lex_low - lex_high group (+50 ms in this case).
 :::
 
-## Excercise {background-color="#43464B"}
+## Exercise {background-color="#43464B"}
 
-## Excercise
+## Exercise
 
 **Run the following models with different contrast-coding schemes and look at the output:**
 
@@ -322,7 +329,7 @@ summary(m)
 
 anova(m0 <- lm(rt ~ cond.cod, sim_dat))
 ```
-Hay una relación directa entre el valor de t y F = $t^2 = F$
+Hay una relación directa entre el valor de t y F: $t^2 = F$
 
 ## Part 1.2: Between-subject design and linear modeling
 
@@ -455,7 +462,7 @@ par(op)
 - Later we will see when parameter recovery fails.
 :::
 
-## In this section we have seen: {#background-color="#43464B"}
+## In this section we have seen:
 
 ::: {.incremental}
 - How to perform power analysis using simulations with independent samples t-tests and linear models.
@@ -472,4 +479,4 @@ Brown, V. A. (2021). An introduction to linear mixed-effects modeling in R. Adva
 
 Schad, D. J., Vasishth, S., Hohenstein, S., & Kliegl, R. (2020). How to capitalize on a priori contrasts in linear (mixed) models: A tutorial. Journal of memory and language, 110, 104038..
 
-##  {background-color="#43464B"}
+##  Preguntas? {background-color="#43464B"}

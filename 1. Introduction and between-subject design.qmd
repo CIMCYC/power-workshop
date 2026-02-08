@@ -1,6 +1,12 @@
 ---
 title: "Simulation-Based Power Analysis"
 subtitle: "Part 1: Introduction to simulations and between-subject design"
+author:
+  - name: "Filip Andras, David López-García & David Sánchez Casasola"
+    affiliations:
+      - name: "Centro de Investigación Mente Cerebro y Comportamiento (CIMCYC), Universidad de Granada"
+date: "2 February 2026"
+date-format: "D MMMM YYYY"
 format:
   revealjs:
     theme: serif
@@ -10,6 +16,7 @@ format:
     code-fold: false
     code-overflow: wrap
     scrollable: true
+    footer: "Justificación del tamaño muestral y análisis de potencia estadística | v2026"
 ---
 
 ## Part 1: Introduction to simulations and between-subject design
@@ -71,10 +78,11 @@ Install packages if not already installed (needs to be run only once):
 #| eval: false
 
 install.packages("tictoc")   # for timing
-install.packages("MASS")     # for multivariate normal distribution 
+install.packages("MASS")     # for multivariate normal distribution
 install.packages("lme4")     # for mixed models
 install.packages("lmerTest") # for p-values in mixed models
 install.packages("ggplot2")  # for plotting
+install.packages("rio")      # for data import (used in Part 7)
 ```
 
 Load packages (run every time you start a new R session):
@@ -111,8 +119,8 @@ set.seed(42) # set seed for reproducibility
 #| output-location: fragment
 #| code-line-numbers: "|1|2|4|5|6|8-14|15-16"
 
-lex_high  <- rnorm(10, mean = 700, sd = 200) # generate data for low frequency words
-lex_low <- rnorm(10, mean = 750, sd = 200) # generate data for high frequency words
+lex_high  <- rnorm(10, mean = 700, sd = 200) # generate data for high frequency words
+lex_low <- rnorm(10, mean = 750, sd = 200) # generate data for low frequency words
 
 subj <- 1:20                                      # create subject IDs
 cond <- rep(c("lex_high", "lex_low"), each = 10)  # create condition factor
@@ -123,7 +131,7 @@ sim_dat <- data.frame(
   subj = subj,
   cond = cond,
   cond.cod = cond.cod,
-  rt = c(lex_low, lex_high)
+  rt = c(lex_high, lex_low)
 )
 # print:
 sim_dat
@@ -155,7 +163,7 @@ betwsubj_simdat_ldt <- function(n = 10,
     subj = subj,
     cond = cond,
     cond.cod = cond.cod,
-    rt = c(lex_low, lex_high)
+    rt = c(lex_high, lex_low)
   )
 }
 ```
@@ -222,6 +230,22 @@ for(i in 1:nsim) {
 power <- mean(pvals < 0.05)
 power
 ```
+## Part 1: Introduction to simulations and between-subject design
+
+**The for loop we just used:**
+
+```{r}
+#| echo: false
+#| caption: "For loop disection."
+#| fig-align: center
+#| out-width: "70%"
+
+knitr::include_graphics("for_loop.png")
+```
+
+## Part 1: Introduction to simulations and between-subject design
+
+**Analytical solution / Using simulations:**
 
 ::: callout-note
 For simple, between subject designs, you can use analytical solutions. However, simulations become essential for more complex designs.
@@ -236,9 +260,9 @@ For simple, between subject designs, you can use analytical solutions. However, 
 -   ...but first, let's practice what we have learned so far!
 :::
 
-## Excercise {background-color="#43464B"}
+## Exercise {background-color="#43464B"}
 
-## Excercise
+## Exercise
 
 **Modify the code below to compute power through simulations for a between-subject design:**
 
@@ -259,9 +283,9 @@ pvals <- rep(NA, nsim)
 tic()
 for(i in 1:nsim) {
   sim_dat <- betwsubj_simdat_ldt(n = # MODIFY HERE ,
-                                 lex_high = # MODIFY HERE , 
-                                 lex_low = # MODIFY HERE ,
-                                 stdev = # MODIFY HERE 
+                                 mean_high = # MODIFY HERE ,
+                                 mean_low = # MODIFY HERE ,
+                                 stdev = # MODIFY HERE
   ) 
   # store the p value from the test in a vector pvals
   pvals[i] <- t.test(rt ~ cond.cod, data = sim_dat)$p.value
@@ -274,7 +298,7 @@ power_sim <- mean(pvals < 0.05)
 round(power_sim, 3)
 ```
 
-## Excercise
+## Exercise
 
 You can answer questions such as:
 
@@ -284,4 +308,4 @@ You can answer questions such as:
 4.  Extra: Can you solve this analytically?
 5.  Extra: How do the simulation results compare to the analytical solution? How many simulations do you need to get stable results?
 
-##  {background-color="#43464B"}
+##  Preguntas? {background-color="#43464B"}

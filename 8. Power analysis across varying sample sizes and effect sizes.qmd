@@ -1,0 +1,771 @@
+---
+title: "Simulation-Based Power Analysis"
+subtitle: "Part 8: Power analysis across varying sample sizes and effect sizes"
+author:
+  - name: "Filip Andras, David López-García & David Sánchez Casasola"
+    affiliations:
+      - name: "Centro de Investigación Mente Cerebro y Comportamiento (CIMCYC), Universidad de Granada"
+date: "2 February 2026"
+date-format: "D MMMM YYYY"
+format:
+  revealjs:
+    theme: serif
+    css: custom.css
+    slide-number: true
+    chalkboard: true
+    code-fold: false
+    code-overflow: wrap
+    scrollable: true
+    footer: "Justificación del tamaño muestral y análisis de potencia estadística | v2026"
+---
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+```{r}
+#| echo: false
+#| eval: true
+
+# load packages
+library(tictoc)
+library(MASS)
+library(lme4)
+library(lmerTest)
+library(ggplot2)
+
+options(scipen = 999) # prevents scientific notation
+set.seed(42) # set seed for reproducibility
+```
+
+```{r}
+#| echo: true
+#| eval: true
+
+# 7 model parameters:
+b0 = 6.59       # grand mean log(RT) (exp(6.59) ≈ 730 ms)
+b1 = 0.10       # log-scale frequency effect (≈70 ms on RT scale)
+sigma_u0 = 0.2  # SD of subject random intercepts (log scale)
+sigma_u1 = 0.02 # SD of subject random slopes (log scale)
+rho = -0.5      # correlation between subject intercepts and slopes
+sigma_w = 0.1   # SD of item random INTERCEPTS only (log scale)
+sigma = 0.25    # residual SD (log scale)
+```
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+```{r}
+#| echo: true
+#| eval: true
+
+# Some default values for sample sizes:
+n = 20          # subjects
+k = 20          # 20 per condition
+
+# Create fully crossed design: each subject sees all items
+sim_dat <- expand.grid(item = 1:(k*2), subj = 1:n)
+sim_dat
+```
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+```{r}
+#| echo: true
+#| eval: true
+
+# Assign items to conditions (half low, half high frequency)
+sim_dat$cond.cod <- rep(c(-0.5, 0.5), each = k)
+sim_dat
+```
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+```{r}
+#| echo: true
+#| eval: true
+
+# Build variance-covariance matrix for subjects from individual parameters
+Sigma_u <- matrix(c(sigma_u0^2, rho * sigma_u0 * sigma_u1,
+                    rho * sigma_u0 * sigma_u1, sigma_u1^2), nrow = 2)
+
+# Subject random effects (intercepts AND slopes):
+u <- mvrnorm(n = length(unique(sim_dat$subj)),
+             mu = c(0,0), 
+             Sigma = Sigma_u)
+u
+```
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+```{r}
+#| echo: true
+#| eval: true
+
+# Item random effects (intercepts ONLY):
+w <- rnorm(n = length(unique(sim_dat$item)), mean = 0, sd = sigma_w)
+w
+```
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+```{r}
+#| echo: true
+#| eval: true
+
+# Generate reaction times data row by row:
+N <- dim(sim_dat)[1]
+rt <- rep(NA, N)
+for(i in 1:N){
+  rt[i] <- rlnorm(1, b0 +                     # grand mean
+                      u[sim_dat[i,]$subj,1] + # subject random intercept
+                      w[sim_dat[i,]$item] +   # item random intercept
+                    (b1 +                     # fixed effect of condition
+                      u[sim_dat[i,]$subj,2]) * sim_dat[i,]$cond.cod, # condition effect with subject random slope
+                   sigma)                     # residual error
+}
+
+round(rt, 0)
+```
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+hist(rt, breaks = 50, main = "Simulated Reaction Times", xlab = "RT (ms)")
+min(rt)
+max(rt)
+```
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+```{r}
+#| echo: true
+#| eval: true
+
+# put it together
+sim_dat$rt <- rt
+sim_dat$subj <- factor(sim_dat$subj)
+sim_dat$item <- factor(sim_dat$item)
+sim_dat
+```
+
+## Automatizamos... {background-color="#43464B"}
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+```{r}
+#| echo: true
+#| eval: true
+
+# Function to generate log-normal LDT data in a fully crossed design
+gendat_ldt_crossed_log <- function(n = 20,          # subjects
+                                   k = 20,          # 20 per condition
+                                   b0 = 6.59,       # grand mean log(RT) (exp(6.59) ≈ 730ms)
+                                   b1 = 0.10,       # log-scale frequency effect (≈70 on RT scale)
+                                   sigma_u0 = 0.2,  # SD of subject random intercepts (log scale)
+                                   sigma_u1 = 0.02, # SD of subject random slopes (log scale)
+                                   rho = -0.5,      # correlation between subject intercepts and slopes
+                                   sigma_w = 0.1,   # SD of item random INTERCEPTS only (log scale)
+                                   sigma = 0.25){   # residual SD (log scale)
+
+  # Create fully crossed design: each subject sees all items
+  sim_dat <- expand.grid(item = 1:(k*2), subj = 1:n)
+
+  # Assign items to conditions (half low, half high frequency)
+  sim_dat$cond.cod <- rep(c(-0.5, 0.5), each = k)
+
+  # Build variance-covariance matrix for subjects from individual parameters
+  Sigma_u <- matrix(c(sigma_u0^2, rho * sigma_u0 * sigma_u1,
+                      rho * sigma_u0 * sigma_u1, sigma_u1^2), nrow = 2)
+
+  # Subject random effects (intercepts AND slopes):
+  u <- mvrnorm(n = length(unique(sim_dat$subj)),
+               mu = c(0,0), 
+               Sigma = Sigma_u)
+
+  # Item random effects (intercepts ONLY):
+  w <- rnorm(n = length(unique(sim_dat$item)), mean = 0, sd = sigma_w)
+
+  # generate data row by row:
+  N <- dim(sim_dat)[1]
+  rt <- rep(NA, N)
+  for(i in 1:N){
+    rt[i] <- rlnorm(1, b0 +                     # grand mean
+                        u[sim_dat[i,]$subj,1] + # subject random intercept
+                        w[sim_dat[i,]$item] +   # item random intercept
+                      (b1 +                     # fixed effect of condition
+                        u[sim_dat[i,]$subj,2]) * sim_dat[i,]$cond.cod, # condition effect with subject random slope
+                     sigma)                     # residual error
+  }
+  sim_dat$rt <- rt
+  sim_dat$subj <- factor(sim_dat$subj)
+  sim_dat$item <- factor(sim_dat$item)
+  sim_dat
+}
+```
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+# I make sure the function works:
+sim_dat <- gendat_ldt_crossed_log(n = 100, k = 100)
+hist(sim_dat$rt, breaks = 50)
+```
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+```{r}
+#| echo: false
+#| eval: true
+#| output-location: fragment
+#| fig-width: 8
+#| fig-height: 6
+
+# Load ggdist for raincloud plots
+library(ggdist)
+library(dplyr)
+
+# Create condition labels for plotting
+sim_dat$condition <- ifelse(sim_dat$cond.cod == -0.5, "High Freq", "Low Freq")
+sim_dat$condition <- factor(sim_dat$condition, levels = c("High Freq", "Low Freq"))
+
+# Calculate subject-level means
+sim_dat_subj <- sim_dat %>%
+  group_by(subj, condition) %>%
+  summarize(mean_log_rt = mean(log(rt)), .groups = "drop")
+
+# Add jittered and nudged x positions
+set.seed(42)
+sim_dat_subj <- sim_dat_subj %>%
+  group_by(condition) %>%
+  mutate(
+    x_jitter = runif(n(), -0.01, 0.01),
+    x_nudge = if_else(condition == "High Freq", 0.30, -0.30),
+    x_pos = as.numeric(factor(condition, levels = c("High Freq", "Low Freq"))) + x_nudge + x_jitter
+  ) %>%
+  ungroup()
+
+# Calculate grand means per condition
+sim_dat_means <- sim_dat_subj %>%
+  group_by(condition) %>%
+  summarize(grand_mean = mean(mean_log_rt), .groups = "drop")
+
+# Create raincloud plot
+rcloud_plot <- ggplot(sim_dat_subj, aes(x = condition, y = mean_log_rt, fill = condition)) +
+  # Half violin for "High Freq" - extends LEFT (outward)
+  stat_halfeye(
+    data = sim_dat %>% filter(condition == "High Freq"),
+    aes(x = condition, y = log(rt)),
+    adjust = 0.5,
+    width = 0.6,
+    .width = 0,
+    justification = 0,
+    point_colour = NA,
+    alpha = 0.5,
+    normalize = "xy",
+    side = "left",
+    position = position_nudge(x = -0.34)
+  ) +
+  # Half violin for "Low Freq" - extends RIGHT (outward)
+  stat_halfeye(
+    data = sim_dat %>% filter(condition == "Low Freq"),
+    aes(x = condition, y = log(rt)),
+    adjust = 0.5,
+    width = 0.6,
+    .width = 0,
+    justification = 0,
+    point_colour = NA,
+    alpha = 0.5,
+    normalize = "xy",
+    side = "right",
+    position = position_nudge(x = -0.2)
+  ) +
+  # Boxplot for "High Freq" - pushed toward center
+  geom_boxplot(
+    data = sim_dat %>% filter(condition == "High Freq"),
+    aes(x = condition, y = log(rt)),
+    width = 0.05,
+    outlier.shape = NA,
+    alpha = 0.4,
+    position = position_nudge(x = 0.20)
+  ) +
+  # Boxplot for "Low Freq" - pushed toward center
+  geom_boxplot(
+    data = sim_dat %>% filter(condition == "Low Freq"),
+    aes(x = condition, y = log(rt)),
+    width = 0.05,
+    outlier.shape = NA,
+    alpha = 0.4,
+    position = position_nudge(x = -0.20)
+  ) +
+  # Lines connecting each subject
+  geom_line(
+    aes(x = x_pos, group = subj),
+    alpha = 0.3,
+    color = "gray40",
+    linewidth = 0.3
+  ) +
+  # Subject-level means
+  geom_point(
+    aes(x = x_pos, color = condition),
+    size = 2.5,
+    alpha = 0.7
+  ) +
+  # Grand mean line (red)
+  geom_line(
+    data = sim_dat_means %>%
+      mutate(x_nudge = if_else(condition == "High Freq", 0.20, -0.20),
+             x_pos = as.numeric(factor(condition, levels = c("High Freq", "Low Freq"))) + x_nudge),
+    aes(x = x_pos, y = grand_mean, group = 1),
+    color = "red",
+    linewidth = 1.2,
+    alpha = 0.9
+  ) +
+  # Grand mean diamonds (red)
+  geom_point(
+    data = sim_dat_means %>%
+      mutate(x_nudge = if_else(condition == "High Freq", 0.20, -0.20),
+             x_pos = as.numeric(factor(condition, levels = c("High Freq", "Low Freq"))) + x_nudge),
+    aes(x = x_pos, y = grand_mean),
+    shape = 23,
+    size = 3,
+    fill = "red",
+    color = "darkred",
+    stroke = 1
+  ) +
+  scale_fill_manual(values = c("High Freq" = "steelblue", "Low Freq" = "coral")) +
+  scale_color_manual(values = c("High Freq" = "steelblue", "Low Freq" = "coral")) +
+  scale_y_continuous(
+    name = "log(RT)",
+    sec.axis = sec_axis(
+      ~ exp(.),
+      name = "RT (ms)",
+      breaks = c(200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000)
+    )
+  ) +
+  labs(
+    title = "Simulated Reaction Times by Lexical Frequency",
+    subtitle = "Raincloud plot: distributions, boxplots, subject means, and individual trajectories",
+    x = "Lexical Frequency"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+rcloud_plot
+```
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+```{r}
+#| echo: true
+#| eval: true
+
+# I check the model can be fitted to the simulated data and returns the expected effect size:
+m <- lmer(log(rt) ~ cond.cod + (1 + cond.cod|subj) + (1|item), sim_dat,
+          control = lmerControl(calc.derivs = FALSE))
+summary(m)
+```
+
+## Finally, we are ready to... {background-color="#43464B"}
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+**Now we are ready to simulate power for different combinations of:**
+
+-   Sample sizes (subjects)
+-   Effect sizes
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+# Define number of subjects:
+n_subj <- c(24, 36, 48, 60, 72, 84, 96)
+
+# Define effect sizes to test:
+effect_sizes <- c(0.06, 0.10, 0.14)
+
+# Fixed number of items
+n_item <- 40  
+
+# Create a grid to store results
+power_grid <- expand.grid(n = n_subj,
+                          b1 = effect_sizes)
+power_grid$power <- NA
+power_grid
+```
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+```{r}
+#| echo: true
+#| eval: true
+
+# Number of simulations per combination
+nsim <- 1000
+
+# Total combinations:
+nrow(power_grid)
+
+# Total simulations:
+nrow(power_grid) * nsim
+```
+
+I ran the power analysis beforehand (it took 5.34 hours to finish) and saved the output to "power_grid_log_crossed.RData"
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+-   Two for loops: one for iterating over the grid of sample sizes and effect sizes, and another for running the simulations for each combination.
+
+```{r}
+#| echo: true
+#| eval: false
+
+# Run the power simulations, if you have the time
+tic()
+for(row in 1:nrow(power_grid)){
+  n_subj <- power_grid$n[row]
+  effect <- power_grid$b1[row]
+
+  cat(sprintf("Running: n=%d, b1=%.2f (%d/%d)\n",
+              n_subj, effect, row, nrow(power_grid)))
+
+  pvals <- rep(NA, nsim)
+
+  for(i in 1:nsim){
+    sim_dat <- gendat_ldt_crossed_log(n = n_subj,
+                                      k = n_item,
+                                      b0 = 6.59,
+                                      b1 = effect,
+                                      sigma_u0 = 0.2,
+                                      sigma_u1 = 0.02,
+                                      rho = -0.5,
+                                      sigma_w = 0.1,
+                                      sigma = 0.25)
+
+    m <- lmer(log(rt) ~ cond.cod + (1 + cond.cod|subj) + (1|item), sim_dat,
+              control = lmerControl(calc.derivs = FALSE))
+
+    pvals[i] <- summary(m)$coefficients[2,5]
+  }
+  power_grid$power[row] <- mean(pvals < 0.05)
+}
+toc() # 19246.916 sec elapsed = 5.34h
+
+# save(power_grid, file = "power_grid_sub_eff.RData")
+```
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+**Load and view the power grid results:**
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+load("power_grid_sub_eff.RData")
+power_grid
+```
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+**Calculate confidence intervals for power estimates:**
+
+```{r}
+#| echo: false
+#| eval: true
+
+# Add confidence intervals
+
+# Function to calculate binomial confidence intervals
+calculate_power_ci <- function(n_significant, n_total, conf.level = 0.95) {
+  # Handle edge cases
+  if (is.na(n_significant) || is.na(n_total) || n_total == 0) {
+    return(c(power = NA, lower = NA, upper = NA))
+  }
+
+  # Ensure inputs are proper integers
+  n_significant <- as.integer(round(n_significant))
+  n_total <- as.integer(round(n_total))
+
+  # Ensure n_significant is within valid range
+  if (n_significant < 0) n_significant <- 0
+  if (n_significant > n_total) n_significant <- n_total
+
+  # Exact binomial confidence interval (Clopper-Pearson method)
+  test_result <- binom.test(n_significant, n_total, conf.level = conf.level)
+
+  c(power = unname(test_result$estimate),
+    lower = test_result$conf.int[1],
+    upper = test_result$conf.int[2])
+}
+
+# Calculate CIs for each power estimate
+power_grid$lower_ci <- NA
+power_grid$upper_ci <- NA
+power_grid$n_sig <- round(power_grid$power * nsim)  # Number of significant results
+
+for(row in 1:nrow(power_grid)) {
+  ci_result <- calculate_power_ci(power_grid$n_sig[row], nsim)
+  power_grid$lower_ci[row] <- ci_result["lower"]
+  power_grid$upper_ci[row] <- ci_result["upper"]
+}
+
+# View power estimates with confidence intervals
+print(power_grid[, c("n", "b1", "power", "lower_ci", "upper_ci")])
+```
+
+Note. The more simulations the more precise the estimates.
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+**Create power curve plot with confidence intervals:**
+
+```{r}
+#| echo: false
+#| eval: true
+#| fig-width: 10
+#| fig-height: 8
+
+# Add effect size labels for plotting
+power_grid$effect_label <- factor(power_grid$b1,
+                                  levels = c(0.06, 0.10, 0.14),
+                                  labels = c("Small (b1=0.06)",
+                                             "Medium (b1=0.10)",
+                                             "Large (b1=0.14)"))
+
+# Create the power curve plot WITH CONFIDENCE INTERVALS (simr-style!)
+power_curves <- ggplot(power_grid, aes(x = n, y = power, color = effect_label,
+                       fill = effect_label, group = effect_label)) +
+  # Shaded confidence region
+  geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci),
+              alpha = 0.2, color = NA) +
+  # Power line and points
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 3) +
+  # Reference lines
+  geom_hline(yintercept = 0.80, linetype = "dashed", color = "black", linewidth = 0.8) +
+  geom_hline(yintercept = 0.025, linetype = "dotted", color = "gray50") +
+  geom_hline(yintercept = 0.95, linetype = "dashed", color = "black", linewidth = 0.8) +
+  geom_hline(yintercept = 0.025, linetype = "dotted", color = "gray50") +
+  # Scales
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.1)) +
+  scale_x_continuous(breaks = n_subj) +
+  scale_color_manual(values = c("#E69F00", "#56B4E9", "#009E73")) +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9", "#009E73")) +
+  # Labels
+  labs(title = "Power Curves with 95% Confidence Intervals",
+       subtitle = sprintf("%d simulations per point", nsim),
+       x = "Number of Subjects",
+       y = "Statistical Power (1 - β)",
+       color = "Effect Size",
+       fill = "Effect Size") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "bottom",
+        plot.title = element_text(face = "bold"),
+        panel.grid.minor = element_blank())
+
+power_curves
+```
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+For a complete picture, let's vary:
+
+-   the number of subjects
+-   the number of trials (items)
+
+Let's assume our effect is relatively small (0.06 on a log scale).
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+
+sample_sizes_2d <- c(24, 36, 48, 60, 72, 84, 96)
+item_numbers_2d <- c(40, 60, 80, 100, 120)
+effect_fixed <- 0.06
+
+power_grid_2d <- expand.grid(n = sample_sizes_2d,
+                             nitem = item_numbers_2d)
+power_grid_2d$power <- NA
+power_grid_2d
+
+nsim <- 500
+
+# total number of simulations:
+nrow(power_grid_2d) * nsim
+```
+
+This power analysis took 8.37h to complete.
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+**Run the power simulations, if you have the time:**
+
+```{r}
+#| echo: true
+#| eval: false
+
+tic()
+for(row in 1:nrow(power_grid_2d)){
+  n_subj <- power_grid_2d$n[row]
+  n_items <- power_grid_2d$nitem[row]
+
+  cat(sprintf("Running: n=%d, k=%d (%d/%d)\n",
+              n_subj, n_items, row, nrow(power_grid_2d)))
+
+  pvals <- rep(NA, nsim)
+
+  for(i in 1:nsim){
+    sim_dat <- gendat_ldt_crossed_log(n = n_subj,
+                                      k = n_items,
+                                      b0 = 6.59,
+                                      b1 = effect_fixed,
+                                      sigma_u0 = 0.2,
+                                      sigma_u1 = 0.02,
+                                      rho = -0.5,
+                                      sigma_w = 0.1,
+                                      sigma = 0.25)
+
+    m <- lmer(log(rt) ~ cond.cod + (1 + cond.cod|subj) + (1|item), sim_dat,
+              control = lmerControl(calc.derivs = FALSE))
+    
+    pvals[i] <- summary(m)$coefficients[2,5]
+  }
+
+  power_grid_2d$power[row] <- mean(pvals < 0.05)
+}
+toc() # 30145.484 sec elapsed = 8.37h
+
+# save(power_grid_2d, file = "power_grid_2d.RData")
+```
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+**Load and view the results:**
+
+```{r}
+#| echo: true
+#| eval: true
+
+load("power_grid_2d.RData")
+power_grid_2d
+```
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+**Add confidence intervals:**
+
+```{r}
+#| echo: false
+#| eval: true
+
+# Add confidence intervals
+
+# Define nsim (should match the value used in simulations)
+nsim <- 500
+
+# Calculate CIs for each power estimate in the 2D grid
+power_grid_2d$lower_ci <- NA
+power_grid_2d$upper_ci <- NA
+power_grid_2d$n_sig <- round(power_grid_2d$power * nsim)
+
+for(row in 1:nrow(power_grid_2d)) {
+  # Only calculate CI if power is not NA
+  if (!is.na(power_grid_2d$power[row])) {
+    ci_result <- calculate_power_ci(power_grid_2d$n_sig[row], nsim)
+    power_grid_2d$lower_ci[row] <- ci_result["lower"]
+    power_grid_2d$upper_ci[row] <- ci_result["upper"]
+  }
+}
+
+# View power estimates with confidence intervals
+power_grid_2d[, c("n", "nitem", "power", "lower_ci", "upper_ci")]
+```
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+**Visualize power across subjects and items:**
+
+```{r}
+#| echo: false
+#| eval: true
+#| fig-width: 10
+#| fig-height: 8
+#| fig-cap: "Heatmap of Power as a Function of Number of Subjects and Items"
+
+# Create heatmap showing power for different combinations
+heatmap <- ggplot(power_grid_2d, aes(x = factor(n), y = factor(nitem), fill = power)) +
+  geom_tile(color = "white", size = 1) +
+  geom_text(aes(label = sprintf("%.2f", power)),
+            color = "black", size = 5, fontface = "bold", vjust = -0.5) +
+  geom_text(aes(label = sprintf("[%.2f, %.2f]", lower_ci, upper_ci)),
+            color = "grey40", size = 3, vjust = 1.2) +
+  scale_fill_gradient2(low = "#d73027", mid = "#fee08b", high = "#1a9850",
+                       midpoint = 0.80, limits = c(0, 1),
+                       breaks = seq(0, 1, 0.2),
+                       name = "Power") +
+  labs(title = "Power as a Function of Subjects and Items",
+       subtitle = sprintf("Effect size: b1=%.2f (log scale), %d simulations per point",
+                          effect_fixed, nsim),
+       x = "Number of Subjects",
+       y = "Number of Items") +
+  theme_minimal(base_size = 14) +
+  theme(plot.title = element_text(face = "bold"),
+        panel.grid = element_blank())
+
+heatmap
+```
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+**Possible next step:**
+
+-   Concentrate on the range where you get 80% and 95% power.
+-   Run more simulations with more granular steps (subjects, items) in the range identified above.
+
+## In this section:
+
+::: incremental
+-   We have done power analysis for three different effect sizes and across varying sample sizes.
+-   We have done power analysis juggling both the number of subjects and items for ideal experimental design, asuming the effect was small.
+:::
+
+## The final model we have created:
+
+$$
+log(rt_{ij}) = \beta_0 + u_{0i} + w_{0j} + (\beta_1 + u_{1i}) \times cond.cod_{ij} + \varepsilon_{ij}$$
+
+-   where:
+
+$$\varepsilon_{ij} \sim Normal(0, \sigma),$$
+
+$$
+\begin{pmatrix} u_0 \\ u_1 \end{pmatrix} \sim MVN \left( \begin{pmatrix} 0 \\ 0 \end{pmatrix}, \Sigma_u \right), \quad
+$$
+
+$$
+\Sigma_u = \begin{pmatrix}
+\sigma_{u0}^2 & \rho_u \sigma_{u0} \sigma_{u1} \\
+\rho_u \sigma_{u0} \sigma_{u1} & \sigma_{u1}^2
+\end{pmatrix}, and \quad
+$$ $$
+\ w_0 \sim N (0, \sigma_w)
+$$
+
+## Part 8: Power analysis across varying sample sizes and effect sizes
+
+**Where to go next:**
+
+-   Similar examples covered here: https://vasishth.github.io/Freq_CogSci/using-simulation-to-understand-your-model.html
+-   Power analysis with Julia: https://repsychling.github.io/MixedModelsSim.jl/stable/simulation_tutorial/
+
+## Preguntas? {background-color="#43464B"}

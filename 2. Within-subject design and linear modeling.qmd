@@ -1,6 +1,12 @@
 ---
 title: "Simulation-Based Power Analysis"
 subtitle: "Part 2: Within-Subject Design and Linear Modeling"
+author:
+  - name: "Filip Andras, David López-García & David Sánchez Casasola"
+    affiliations:
+      - name: "Centro de Investigación Mente Cerebro y Comportamiento (CIMCYC), Universidad de Granada"
+date: "2 February 2026"
+date-format: "D MMMM YYYY"
 format:
   revealjs:
     theme: serif
@@ -10,6 +16,7 @@ format:
     code-fold: false
     code-overflow: wrap
     scrollable: true
+    footer: "Justificación del tamaño muestral y análisis de potencia estadística | v2026"
 ---
 
 ## Part 2: Within-subject design and linear modeling
@@ -183,7 +190,7 @@ lex_low  <- round(rnorm(n, mean = 750, sd = 200))
 
 subj <- rep(1:n, times = 2)                             # subject vector
 cond <- factor(rep(c("lex_high", "lex_low"), each = n)) # condition vector
-cond.cod <- ifelse(cond == "lex_high", 0.5, -0.5)       # sum coded condition vector
+cond.cod <- ifelse(cond == "lex_high", -0.5, 0.5)       # sum coded condition vector
 
 # put it together:
 sim_dat <- data.frame( 
@@ -235,15 +242,15 @@ sim_dat$rt <- rt  # put the RTs into the data frame, these data are now dependen
 
 Notice that our data generation model is now:
 
-- rt = $\beta_0 + u_0 + \beta_1 * cond.cod + \epsilon$
-- $rt = 725 + u_0 + 50 * cond.cod + ε$
+- rt = $\beta_0 + u_{0i} + \beta_1 * cond.cod + \epsilon$
+- $rt = 725 + u_{0i} + 50 * cond.cod + ε$
 
 Where:
 
 :::{.incremental}
 - rt = simulated response time
 - 725 = grand mean (intercept)
-- $u_0$ = by-subject adjustment to the grand mean (random intercept) ~ N(0, 150)
+- $u_{0i}$ = by-subject adjustment to the grand mean (random intercept) ~ N(0, 150)
 - 50 = condition effect (slope)
 - cond.cod = sum coded condition variable (-0.5 = lex_high, 0.5 = lex_low)
 - ε = residual error ~ N(0, 200)
@@ -458,13 +465,13 @@ head(xtabs(~subj + cond.cod, sim_dat))
 
 So far, our model is:
 
-- rt = 725 + $u_0$ + 50 * cond.cod + ε
-- rt = $\beta_0 + u_0 + \beta_1 * cond.cod + \epsilon$
+- rt = 725 + $u_{i0}$ + 50 * cond.cod + ε
+- rt = $\beta_0 + u_{0i} + \beta_1 * cond.cod + \epsilon$
 
 Where:
 
 :::{.incremental}
-- $u_0$ = by-subject adjustment to the grand mean (random intercept) ~ N(0, 150)
+- $u_{0i}$ = by-subject adjustment to the grand mean (random intercept) ~ N(0, 150)
 - $\epsilon$ = residual error ~ N(0, 200)
 :::
 
@@ -476,4 +483,4 @@ Where:
 - Now we will generated MULTIPLE repeated measures per condition per subject.
 :::
 
-##  {background-color="#43464B"}
+##  Preguntas? {background-color="#43464B"}

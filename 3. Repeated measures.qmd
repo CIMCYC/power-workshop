@@ -1,6 +1,12 @@
 ---
 title: "Simulation-Based Power Analysis"
 subtitle: "Part 3: Repeated Measures"
+author:
+  - name: "Filip Andras, David López-García & David Sánchez Casasola"
+    affiliations:
+      - name: "Centro de Investigación Mente Cerebro y Comportamiento (CIMCYC), Universidad de Granada"
+date: "2 February 2026"
+date-format: "D MMMM YYYY"
 format:
   revealjs:
     theme: serif
@@ -10,7 +16,9 @@ format:
     code-fold: false
     code-overflow: wrap
     scrollable: true
+    footer: "Justificación del tamaño muestral y análisis de potencia estadística | v2026"
 ---
+
 ## Part 3: Repeated Measures
 
 ```{r}
@@ -161,4 +169,4 @@ Whenever you see a correlation of -1/+1 between intercept and slope, it indicate
 But do not worry about the correlation, we have not even done by-subject adjustments to the slopes yet. We will do that right now.
 :::
 
-##  {background-color="#43464B"}
+##  Preguntas? {background-color="#43464B"}

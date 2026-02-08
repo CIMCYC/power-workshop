@@ -1,6 +1,12 @@
 ---
 title: "Simulation-Based Power Analysis"
 subtitle: "Part 4: By-participant adjustments to the slope"
+author:
+  - name: "Filip Andras, David López-García & David Sánchez Casasola"
+    affiliations:
+      - name: "Centro de Investigación Mente Cerebro y Comportamiento (CIMCYC), Universidad de Granada"
+date: "2 February 2026"
+date-format: "D MMMM YYYY"
 format:
   revealjs:
     theme: serif
@@ -10,6 +16,7 @@ format:
     code-fold: false
     code-overflow: wrap
     scrollable: true
+    footer: "Justificación del tamaño muestral y análisis de potencia estadística | v2026"
 ---
 
 ## Part 4: By-participant adjustments to the slope
@@ -284,7 +291,7 @@ sim_dat$rt <- rt
 
 ## Part 4: By-participant adjustments to the slope
 
-**Let's uderstand these lines of code:**
+**Let's understand these lines of code:**
 
 ```{r}
 #| echo: true
@@ -303,7 +310,7 @@ sim_dat$rt <- rt
 
 ## Part 4: By-participant adjustments to the slope
 
-**Let's uderstand these lines of code:**
+**Let's understand these lines of code:**
 
 ```{r}
 #| echo: true
@@ -393,7 +400,7 @@ gendat_ldt <- function(n = 20,          # subjects
                        b0 = 725,        # grand mean RT
                        b1 = 50,         # frequency effect (50 ms with ±0.5 coding)
                        sigma_u0 = 150,  # SD of subject random intercepts
-                       sigma_u1 = 30,   # SD of subject random slopes
+                       sigma_u1 = 20,   # SD of subject random slopes
                        sigma = 200){    # residual SD
 
   u <- data.frame(subject = 1:n,
@@ -434,7 +441,7 @@ sim_dat <- gendat_ldt(n = 20,
                       b0 = 725, 
                       b1 = 50,
                       sigma_u0 = 100, 
-                      sigma_u1 = 30,
+                      sigma_u1 = 20,
                       sigma = 200)
 
 # Fit model
@@ -461,7 +468,7 @@ for(i in 1:nsim){
                         b0 = 725, 
                         b1 = 50,
                         sigma_u0 = 150, 
-                        sigma_u1 = 30,
+                        sigma_u1 = 20,
                         sigma = 200)
 
   m <- lmer(rt ~ cond.cod + (1 + cond.cod||subj), sim_dat,
@@ -476,7 +483,7 @@ round(power_estimate, 3)
 
 ## Part 4: By-participant adjustments to the slope
 
-**Paremeter recovery:**
+**Parameter recovery:**
 
 ```{r}
 #| echo: true

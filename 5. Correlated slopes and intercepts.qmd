@@ -1,6 +1,12 @@
 ---
 title: "Simulation-Based Power Analysis"
 subtitle: "Part 5: Generating data with correlated random intercepts and slopes"
+author:
+  - name: "Filip Andras, David López-García & David Sánchez Casasola"
+    affiliations:
+      - name: "Centro de Investigación Mente Cerebro y Comportamiento (CIMCYC), Universidad de Granada"
+date: "2 February 2026"
+date-format: "D MMMM YYYY"
 format:
   revealjs:
     theme: serif
@@ -10,9 +16,7 @@ format:
     code-fold: false
     code-overflow: wrap
     scrollable: true
-editor: 
-  markdown: 
-    wrap: sentence
+    footer: "Justificación del tamaño muestral y análisis de potencia estadística | v2026"
 ---
 
 ## Part 5: Generating data with correlated random intercepts and slopes
@@ -295,7 +299,7 @@ abline(v=200, col = "red", lwd = 2)
 hist(params[,4], main = "SD Random Intercepts", col = "lightblue")
 abline(v=150, col = "red", lwd = 2)
 hist(params[,5], main = "SD Random Slopes", col = "lightblue")
-abline(v=30, col = "red", lwd = 2)
+abline(v=20, col = "red", lwd = 2)
 hist(params[,6], main = "Correlation (rho)", col = "lightblue")
 abline(v=-0.5, col = "red", lwd = 2)
 par(op)
@@ -325,4 +329,3 @@ $$
 -   We will now continue generating data with by-item adjustments to intercepts (because words, as subjects, come with their own variability).
 
 ##  Preguntas? {background-color="#43464B"}
-

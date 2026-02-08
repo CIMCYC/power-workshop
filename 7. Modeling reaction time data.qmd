@@ -1,6 +1,12 @@
 ---
 title: "Simulation-Based Power Analysis"
 subtitle: "Part 7: Modeling reaction time data: log-normal distribution"
+author:
+  - name: "Filip Andras, David López-García & David Sánchez Casasola"
+    affiliations:
+      - name: "Centro de Investigación Mente Cerebro y Comportamiento (CIMCYC), Universidad de Granada"
+date: "2 February 2026"
+date-format: "D MMMM YYYY"
 format:
   revealjs:
     theme: serif
@@ -10,6 +16,7 @@ format:
     code-fold: false
     code-overflow: wrap
     scrollable: true
+    footer: "Justificación del tamaño muestral y análisis de potencia estadística | v2026"
 ---
 
 ## Part 7: Modeling reaction time data: log-normal distribution
@@ -70,7 +77,7 @@ gendat_ldt_crossed <- function(n = 20,          # subjects
                         w[sim_dat[i,]$item] +   # item random intercept
                       (b1 + 
                          u[sim_dat[i,]$subj,2]) * sim_dat[i,]$cond.cod,
-                    sigma)                     # residual error
+                    sigma)                      # residual error
   }
   sim_dat$rt <- rt
   sim_dat$subj <- factor(sim_dat$subj)
@@ -453,10 +460,10 @@ abline(v=0.10, col = "red", lwd = 2)
 hist(params[,3], main = "sigma (Residuals)", col = "lightblue")
 abline(v=0.25, col = "red", lwd = 2)
 
-hist(params[,4], main = "sigma_u0 (Item Intercepts)", col = "lightblue")
+hist(params[,4], main = "sigma_u0 (Subj Intercepts)", col = "lightblue")
 abline(v=0.10, col = "red", lwd = 2)
 
-hist(params[,5], main = "sigma_w (Subj Intercepts)", col = "lightblue")
+hist(params[,5], main = "sigma_w (Item Intercepts)", col = "lightblue")
 abline(v=0.20, col = "red", lwd = 2)
 
 hist(params[,6], main = "sigma_u1 (Subj Slopes)", col = "lightblue")
